@@ -149,7 +149,9 @@ CREATE POLICY "anon_read_circle_members"
 CREATE POLICY "service_role_full_circle_members"
   ON public.circle_members FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- Revoke execute on rls_auto_enable from public-facing roles
+-- Fix rls_auto_enable function security warnings:
+-- 1. Switch to SECURITY INVOKER so it doesn't run with elevated DEFINER privileges
+-- 2. Revoke execute completely from PUBLIC, anon, and authenticated
 DO $$
 BEGIN
   IF EXISTS (
@@ -157,7 +159,9 @@ BEGIN
     WHERE proname = 'rls_auto_enable'
       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
   ) THEN
-    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon, authenticated';
+    ALTER FUNCTION public.rls_auto_enable() SECURITY INVOKER;
+    REVOKE ALL ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon, authenticated, PUBLIC;
   END IF;
 END
 $$;
