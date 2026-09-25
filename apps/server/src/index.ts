@@ -205,6 +205,45 @@ export async function buildApp() {
     };
   });
 
+  // Circles: Fetch circle for a specific user
+  app.get('/api/v1/circles/user/:userId', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+    for (const circle of store.circles.values()) {
+      if (circle.members.some((m) => m.userId === userId)) {
+        return { circle };
+      }
+    }
+    return reply.status(404).send({ error: 'Circle not found for user' });
+  });
+
+  // Circles: Update member check-in progress
+  app.post('/api/v1/circles/:id/progress', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const schema = z.object({
+      userId: z.string(),
+      checkedInToday: z.boolean(),
+      weeklyDosesLogged: z.number(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid progress payload' });
+    }
+
+    const circle = store.circles.get(id);
+    if (!circle) {
+      return reply.status(404).send({ error: 'Circle not found' });
+    }
+
+    const member = circle.members.find((m) => m.userId === parsed.data.userId);
+    if (member) {
+      member.checkedInToday = parsed.data.checkedInToday;
+      member.weeklyDosesLogged = parsed.data.weeklyDosesLogged;
+      member.lastActive = new Date().toISOString();
+    }
+
+    return { success: true, circle };
+  });
+
   // RevenueCat Webhook: Pro Subscription handler
   app.post('/api/v1/webhooks/revenuecat', async (req, reply) => {
     const payload = req.body as any;

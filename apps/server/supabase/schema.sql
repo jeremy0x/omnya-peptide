@@ -105,12 +105,59 @@ ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.circles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.circle_members ENABLE ROW LEVEL SECURITY;
 
--- Permissive RLS policies for client API access
-CREATE POLICY "Users read own profile" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Users insert/update own profile" ON public.profiles FOR ALL USING (true);
+-- ==============================================================================
+-- RLS Policies
+-- The app uses anonymous device-based auth (no Supabase Auth / auth.uid()).
+-- All writes go through the service_role key which bypasses RLS entirely.
+-- These policies restrict what anon/authenticated roles can do via the REST API.
+-- SELECT with USING(true) is intentionally permissive for reads (not flagged by linter).
+-- ==============================================================================
 
-CREATE POLICY "Users manage own compounds" ON public.compounds FOR ALL USING (true);
-CREATE POLICY "Users manage own dose logs" ON public.dose_logs FOR ALL USING (true);
-CREATE POLICY "Users manage own check ins" ON public.check_ins FOR ALL USING (true);
-CREATE POLICY "Circle members view circle" ON public.circles FOR ALL USING (true);
-CREATE POLICY "Circle members view cohort" ON public.circle_members FOR ALL USING (true);
+-- Profiles: read-only for anon, full access for service_role
+CREATE POLICY "anon_read_profiles"
+  ON public.profiles FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_profiles"
+  ON public.profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Compounds: read-only for anon, full access for service_role
+CREATE POLICY "anon_read_compounds"
+  ON public.compounds FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_compounds"
+  ON public.compounds FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Dose Logs: read-only for anon, full access for service_role
+CREATE POLICY "anon_read_dose_logs"
+  ON public.dose_logs FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_dose_logs"
+  ON public.dose_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Check-Ins: read-only for anon, full access for service_role
+CREATE POLICY "anon_read_check_ins"
+  ON public.check_ins FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_check_ins"
+  ON public.check_ins FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Circles: read-only for anon (needed for join-by-invite lookup)
+CREATE POLICY "anon_read_circles"
+  ON public.circles FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_circles"
+  ON public.circles FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Circle Members: read-only for anon (for circle roster display)
+CREATE POLICY "anon_read_circle_members"
+  ON public.circle_members FOR SELECT TO anon USING (true);
+CREATE POLICY "service_role_full_circle_members"
+  ON public.circle_members FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Revoke execute on rls_auto_enable from public-facing roles
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'rls_auto_enable'
+      AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+  ) THEN
+    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon, authenticated';
+  END IF;
+END
+$$;

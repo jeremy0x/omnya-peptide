@@ -18,24 +18,7 @@ class SyncStatusIndicator extends StatefulWidget {
   State<SyncStatusIndicator> createState() => _SyncStatusIndicatorState();
 }
 
-class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _spinController;
-
-  @override
-  void initState() {
-    super.initState();
-    _spinController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-  }
-
-  @override
-  void dispose() {
-    _spinController.dispose();
-    super.dispose();
-  }
+class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
 
   void _onTap(BuildContext context, ProtocolRepository repo) async {
     HapticFeedback.lightImpact();
@@ -91,17 +74,6 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
     final repo = context.watch<ProtocolRepository>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (repo.isSyncing) {
-      if (!_spinController.isAnimating) {
-        _spinController.repeat();
-      }
-    } else {
-      if (_spinController.isAnimating) {
-        _spinController.stop();
-        _spinController.reset();
-      }
-    }
-
     final Color statusColor;
     final List<List<dynamic>> icon;
     final String label;
@@ -150,21 +122,22 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (repo.isSyncing)
-              RotationTransition(
-                turns: _spinController,
-                child: HugeIcon(
-                  icon: icon,
-                  color: statusColor,
-                  size: 16,
+            HugeIcon(
+              icon: icon,
+              color: statusColor,
+              size: 16,
+            ),
+            if (repo.isSyncing) ...[
+              const SizedBox(width: 5),
+              const SizedBox(
+                width: 8,
+                height: 8,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: OmnyaColors.plum,
                 ),
-              )
-            else
-              HugeIcon(
-                icon: icon,
-                color: statusColor,
-                size: 16,
               ),
+            ],
             if (repo.hasPendingSync) ...[
               const SizedBox(width: 4),
               Container(

@@ -157,11 +157,15 @@ class _TactileButtonState extends State<TactileButton>
                     widget.leading!,
                     const SizedBox(width: 8),
                   ],
-                  Text(
-                    widget.label,
-                    style: OmnyaTypography.label(
-                      color: fg,
-                      weight: FontWeight.w500,
+                  Flexible(
+                    child: Text(
+                      widget.label,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: OmnyaTypography.label(
+                        color: fg,
+                        weight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   if (widget.trailing != null) ...[

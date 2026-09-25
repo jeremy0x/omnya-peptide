@@ -69,6 +69,7 @@ class ProtocolRepository extends ChangeNotifier {
       } else {
         await storage.setPendingSync(true);
       }
+      _syncCircleInternal();
       return success;
     } catch (e) {
       await storage.setPendingSync(true);
@@ -77,6 +78,33 @@ class ProtocolRepository extends ChangeNotifier {
       _isSyncing = false;
       notifyListeners();
     }
+  }
+
+  Future<void> syncCircle() async {
+    await _syncCircleInternal();
+  }
+
+  Future<void> _syncCircleInternal() async {
+    final userId = _profile?.id ?? 'usr_local_seed';
+    try {
+      final userCircle = await api.fetchUserCircle(userId);
+      if (userCircle != null) {
+        _circle = userCircle;
+        await storage.saveCircle(userCircle);
+        notifyListeners();
+      } else if (_circle == null) {
+        final created = await api.createCircle(
+          name: 'My Cohort',
+          ownerUserId: userId,
+          ownerDisplayName: 'You',
+        );
+        if (created != null) {
+          _circle = created;
+          await storage.saveCircle(created);
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
   }
 
   void _markPendingAndSync() {
@@ -116,6 +144,35 @@ class ProtocolRepository extends ChangeNotifier {
 
     await storage.saveCompounds(_compounds);
     await storage.saveDoseLogs(_doseLogs);
+
+    // Update circle member check-in for current user
+    if (_circle != null) {
+      final currentUserId = _profile?.id ?? 'usr_local_seed';
+      final updatedMembers = _circle!.members.map((m) {
+        if (m.userId == currentUserId || m.userId == 'usr_you' || m.displayName == 'You') {
+          return m.copyWith(
+            checkedInToday: true,
+            weeklyDosesLogged: m.weeklyDosesLogged + 1,
+          );
+        }
+        return m;
+      }).toList();
+
+      final myMember = updatedMembers.firstWhere(
+        (m) => m.userId == currentUserId || m.userId == 'usr_you' || m.displayName == 'You',
+        orElse: () => updatedMembers.first,
+      );
+
+      _circle = _circle!.copyWith(members: updatedMembers);
+      await storage.saveCircle(_circle!);
+      api.updateCircleMemberProgress(
+        circleId: _circle!.id,
+        userId: myMember.userId,
+        checkedInToday: true,
+        weeklyDosesLogged: myMember.weeklyDosesLogged,
+      );
+    }
+
     notifyListeners();
     _markPendingAndSync();
   }
@@ -248,23 +305,23 @@ class ProtocolRepository extends ChangeNotifier {
   }
 
   // Join Circle
-  Future<bool> joinCircle({
+  Future<CircleActionResult> joinCircle({
     required String inviteCode,
     required String displayName,
   }) async {
+    final userId = _profile?.id ?? 'usr_local_seed';
     final result = await api.joinCircle(
-      userId: _profile?.id ?? 'usr_local',
+      userId: userId,
       inviteCode: inviteCode,
       displayName: displayName,
     );
 
-    if (result != null) {
-      _circle = result;
-      await storage.saveCircle(result);
+    if (result.success && result.circle != null) {
+      _circle = result.circle;
+      await storage.saveCircle(result.circle!);
       notifyListeners();
-      return true;
     }
-    return false;
+    return result;
   }
 
   // Complete Onboarding

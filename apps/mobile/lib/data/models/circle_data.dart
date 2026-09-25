@@ -33,6 +33,24 @@ class CircleMemberModel {
         weeklyDosesLogged: json['weeklyDosesLogged'] as int? ?? 0,
         weeklyDosesTarget: json['weeklyDosesTarget'] as int? ?? 7,
       );
+
+  CircleMemberModel copyWith({
+    String? userId,
+    String? displayName,
+    String? avatarLetter,
+    bool? checkedInToday,
+    int? weeklyDosesLogged,
+    int? weeklyDosesTarget,
+  }) {
+    return CircleMemberModel(
+      userId: userId ?? this.userId,
+      displayName: displayName ?? this.displayName,
+      avatarLetter: avatarLetter ?? this.avatarLetter,
+      checkedInToday: checkedInToday ?? this.checkedInToday,
+      weeklyDosesLogged: weeklyDosesLogged ?? this.weeklyDosesLogged,
+      weeklyDosesTarget: weeklyDosesTarget ?? this.weeklyDosesTarget,
+    );
+  }
 }
 
 class CircleModel {
@@ -65,4 +83,18 @@ class CircleModel {
             .map((m) => CircleMemberModel.fromJson(m as Map<String, dynamic>))
             .toList(),
       );
+
+  CircleModel copyWith({
+    String? id,
+    String? inviteCode,
+    String? name,
+    List<CircleMemberModel>? members,
+  }) {
+    return CircleModel(
+      id: id ?? this.id,
+      inviteCode: inviteCode ?? this.inviteCode,
+      name: name ?? this.name,
+      members: members ?? this.members,
+    );
+  }
 }

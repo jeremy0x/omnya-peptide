@@ -6,6 +6,7 @@ import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
 import '../../../core/widgets/liquid_glass_container.dart';
 import '../../../core/widgets/tactile_button.dart';
+import '../../../data/models/circle_data.dart';
 import '../../../data/repositories/protocol_repository.dart';
 import '../../core/omnya_header.dart';
 
@@ -17,14 +18,6 @@ class CircleView extends StatefulWidget {
 }
 
 class _CircleViewState extends State<CircleView> {
-  final _inviteController = TextEditingController();
-
-  @override
-  void dispose() {
-    _inviteController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<ProtocolRepository>();
@@ -66,7 +59,7 @@ class _CircleViewState extends State<CircleView> {
                     child: IconButton(
                       onPressed: () {
                         HapticFeedback.lightImpact();
-                        _showInviteDialog(context, circle?.inviteCode ?? 'OMNYA');
+                        _showInviteSheet(context, circle);
                       },
                       icon: const HugeIcon(
                         icon: HugeIcons.strokeRoundedUserAdd01,
@@ -246,7 +239,7 @@ class _CircleViewState extends State<CircleView> {
                           variant: TactileButtonVariant.primary,
                           height: 44,
                           borderRadius: 14,
-                          onPressed: () => _showInviteDialog(context, circle?.inviteCode ?? 'OMNYA'),
+                          onPressed: () => _showInviteSheet(context, circle),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -256,7 +249,7 @@ class _CircleViewState extends State<CircleView> {
                           variant: TactileButtonVariant.outline,
                           height: 44,
                           borderRadius: 14,
-                          onPressed: () => _showJoinDialog(context, repo),
+                          onPressed: () => _showJoinSheet(context, repo),
                         ),
                       ),
                     ],
@@ -270,105 +263,378 @@ class _CircleViewState extends State<CircleView> {
     );
   }
 
-  void _showInviteDialog(BuildContext context, String code) {
-    showDialog(
+  void _showInviteSheet(BuildContext context, CircleModel? circle) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inviteCode = circle?.inviteCode ?? 'OMNYA';
+    final memberCount = circle?.members.length ?? 1;
+    final spotsLeft = (5 - memberCount).clamp(0, 5);
+
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: OmnyaColors.cream,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('Invite a friend', style: OmnyaTypography.headline()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your circle is capped at 5 close friends to maintain authentic consistency without noise.',
-              style: OmnyaTypography.bodyMedium(),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1B18) : OmnyaColors.cream,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border.all(
+              color: isDark ? const Color(0xFF332E2A) : OmnyaColors.taupe.withValues(alpha: 0.25),
+              width: 1,
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: OmnyaColors.sand,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    code,
-                    style: OmnyaTypography.headline(color: OmnyaColors.plum),
+          ),
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 14,
+            bottom: MediaQuery.of(ctx).padding.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF4A443E) : OmnyaColors.taupe.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      Clipboard.setData(ClipboardData(text: code));
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied to clipboard!')),
-                      );
-                    },
-                    child: const Text('Copy'),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 20),
+
+              // Title & Subtitle
+              Text(
+                'Invite to Circle',
+                style: OmnyaTypography.headline(
+                  color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Accountability cohorts are capped at 5 friends to keep tracking intimate. Only consistency and shot days are visible — weights and notes stay strictly on-device.',
+                style: OmnyaTypography.bodySmall(
+                  color: isDark ? OmnyaColors.sandMuted : OmnyaColors.charcoalMuted,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Hero Code Container
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF282420) : OmnyaColors.sand.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF3E3832) : OmnyaColors.taupe.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      inviteCode.split('').join('  '),
+                      style: const TextStyle(
+                        fontFamily: 'serif',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 6,
+                        color: OmnyaColors.plum,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: OmnyaColors.sage.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$spotsLeft of 5 spots remaining',
+                        style: OmnyaTypography.label(
+                          color: OmnyaColors.sage,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Copy Action
+              TactileButton(
+                label: 'Copy Invite Code',
+                variant: TactileButtonVariant.primary,
+                height: 50,
+                borderRadius: 16,
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  Clipboard.setData(ClipboardData(text: inviteCode));
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Invite code copied to clipboard'),
+                      duration: Duration(seconds: 2),
+                      backgroundColor: OmnyaColors.plum,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  void _showJoinDialog(BuildContext context, ProtocolRepository repo) {
-    showDialog(
+  void _showJoinSheet(BuildContext context, ProtocolRepository repo) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final codeController = TextEditingController();
+    final nameController = TextEditingController(text: 'You');
+    String? errorMessage;
+    bool isLoading = false;
+
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: OmnyaColors.cream,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text('Join circle', style: OmnyaTypography.headline()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _inviteController,
-              decoration: InputDecoration(
-                hintText: 'Enter 5-character invite code',
-                filled: true,
-                fillColor: OmnyaColors.sand,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1B18) : OmnyaColors.cream,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF332E2A) : OmnyaColors.taupe.withValues(alpha: 0.25),
+                  width: 1,
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: OmnyaColors.plum,
-              foregroundColor: OmnyaColors.cream,
-            ),
-            onPressed: () async {
-              HapticFeedback.lightImpact();
-              final code = _inviteController.text.trim();
-              if (code.isNotEmpty) {
-                final nav = Navigator.of(context);
-                await repo.joinCircle(inviteCode: code, displayName: 'You');
-                nav.pop();
-              }
-            },
-            child: const Text('Join'),
-          ),
-        ],
-      ),
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 14,
+                bottom: bottomInset + MediaQuery.of(ctx).padding.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Drag Handle
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF4A443E) : OmnyaColors.taupe.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Title & Subtitle
+                    Text(
+                      'Join Circle',
+                      style: OmnyaTypography.headline(
+                        color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enter your 5-character cohort invite code to share shot consistency with friends.',
+                      style: OmnyaTypography.bodySmall(
+                        color: isDark ? OmnyaColors.sandMuted : OmnyaColors.charcoalMuted,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Centered 5-character Code Input
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF282420) : OmnyaColors.sand.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: errorMessage != null
+                              ? const Color(0xFFEF4444)
+                              : (isDark ? const Color(0xFF3E3832) : OmnyaColors.taupe.withValues(alpha: 0.3)),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: codeController,
+                        textAlign: TextAlign.center,
+                        textCapitalization: TextCapitalization.characters,
+                        maxLength: 5,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 12,
+                          color: isDark ? OmnyaColors.cream : OmnyaColors.plum,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          hintText: '• • • • •',
+                          hintStyle: TextStyle(
+                            fontSize: 20,
+                            letterSpacing: 8,
+                            color: isDark ? const Color(0xFF5A524A) : OmnyaColors.taupeDark.withValues(alpha: 0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onChanged: (_) {
+                          if (errorMessage != null) {
+                            setSheetState(() => errorMessage = null);
+                          }
+                        },
+                      ),
+                    ),
+
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedAlertCircle,
+                              color: Color(0xFFEF4444),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                errorMessage!,
+                                style: const TextStyle(
+                                  color: Color(0xFFEF4444),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Display Name Field
+                    Text(
+                      'Your Name in Circle',
+                      style: OmnyaTypography.label(
+                        color: isDark ? OmnyaColors.sandMuted : OmnyaColors.charcoalMuted,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF282420) : OmnyaColors.sand.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF3E3832) : OmnyaColors.taupe.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: nameController,
+                        style: OmnyaTypography.bodyMedium(
+                          color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. Alex',
+                          hintStyle: OmnyaTypography.bodyMedium(
+                            color: OmnyaColors.taupeDark.withValues(alpha: 0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Submit Button
+                    TactileButton(
+                      label: isLoading ? 'Joining Cohort...' : 'Join Circle',
+                      variant: TactileButtonVariant.primary,
+                      height: 50,
+                      borderRadius: 16,
+                      onPressed: isLoading
+                          ? null
+                          : () async {
+                              final code = codeController.text.trim().toUpperCase();
+                              final name = nameController.text.trim().isEmpty ? 'You' : nameController.text.trim();
+
+                              if (code.length != 5) {
+                                setSheetState(() {
+                                  errorMessage = 'Enter the complete 5-character code';
+                                });
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+
+                              setSheetState(() {
+                                isLoading = true;
+                                errorMessage = null;
+                              });
+
+                              final result = await repo.joinCircle(
+                                inviteCode: code,
+                                displayName: name,
+                              );
+
+                              if (!ctx.mounted) return;
+
+                              if (result.success) {
+                                HapticFeedback.lightImpact();
+                                Navigator.pop(ctx);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Joined ${result.circle?.name ?? "circle"} cohort!'),
+                                      duration: const Duration(seconds: 3),
+                                      backgroundColor: OmnyaColors.plum,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                HapticFeedback.heavyImpact();
+                                setSheetState(() {
+                                  isLoading = false;
+                                  errorMessage = result.errorMessage ?? 'Failed to join circle';
+                                });
+                              }
+                            },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

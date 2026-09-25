@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,24 @@ import '../models/compound.dart';
 import '../models/dose_log.dart';
 import '../models/daily_check_in.dart';
 import '../models/user_profile.dart';
+
+class CircleActionResult {
+  final bool success;
+  final String? errorMessage;
+  final CircleModel? circle;
+
+  CircleActionResult({
+    required this.success,
+    this.errorMessage,
+    this.circle,
+  });
+
+  factory CircleActionResult.ok(CircleModel circle) =>
+      CircleActionResult(success: true, circle: circle);
+
+  factory CircleActionResult.err(String error) =>
+      CircleActionResult(success: false, errorMessage: error);
+}
 
 class ApiService {
   final String baseUrl;
@@ -224,48 +243,38 @@ class ApiService {
     }
   }
 
-  /// Circle: Join an invite-only circle cohort
-  Future<CircleModel?> joinCircle({
-    required String userId,
-    required String inviteCode,
-    required String displayName,
-  }) async {
+  /// Generates a clean 5-character alphanumeric invite code (omitting ambiguous characters like 0/O/1/I)
+  static String generateInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rnd = math.Random();
+    return List.generate(5, (_) => chars[rnd.nextInt(chars.length)]).join();
+  }
+
+  /// Circle: Fetch active Circle cohort for user
+  Future<CircleModel?> fetchUserCircle(String userId) async {
     // 1. Direct Supabase
     final client = _supabase;
     if (client != null) {
       try {
-        final circle = await client
-            .from('circles')
+        final membership = await client
+            .from('circle_members')
             .select()
-            .eq('invite_code', inviteCode.trim().toUpperCase())
+            .eq('user_id', userId)
             .maybeSingle();
 
-        if (circle != null) {
-          final circleId = circle['id'] as String;
-          final members = await client.from('circle_members').select().eq('circle_id', circleId);
-          final maxMembers = circle['max_members'] as int? ?? 5;
-
-          if (members.length < maxMembers) {
-            await client.from('circle_members').upsert({
-              'id': 'mem_${userId}_$circleId',
-              'circle_id': circleId,
-              'user_id': userId,
-              'display_name': displayName,
-              'avatar_letter': displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-              'checked_in_today': true,
-              'weekly_doses_logged': 1,
-              'weekly_doses_target': 7,
-            });
-
-            final updatedMembers = await client.from('circle_members').select().eq('circle_id', circleId);
+        if (membership != null) {
+          final circleId = membership['circle_id'] as String;
+          final circleData = await client.from('circles').select().eq('id', circleId).maybeSingle();
+          if (circleData != null) {
+            final members = await client.from('circle_members').select().eq('circle_id', circleId);
             return CircleModel(
               id: circleId,
-              inviteCode: circle['invite_code'] as String,
-              name: circle['name'] as String,
-              members: updatedMembers.map((m) => CircleMemberModel(
+              inviteCode: circleData['invite_code'] as String,
+              name: circleData['name'] as String,
+              members: members.map((m) => CircleMemberModel(
                 userId: m['user_id'] as String,
                 displayName: m['display_name'] as String,
-                avatarLetter: m['avatar_letter'] as String,
+                avatarLetter: (m['avatar_letter'] as String?)?.isNotEmpty == true ? (m['avatar_letter'] as String)[0] : 'U',
                 checkedInToday: m['checked_in_today'] as bool? ?? false,
                 weeklyDosesLogged: m['weekly_doses_logged'] as int? ?? 0,
                 weeklyDosesTarget: m['weekly_doses_target'] as int? ?? 7,
@@ -274,29 +283,123 @@ class ApiService {
           }
         }
       } catch (e) {
+        debugPrint('Supabase fetchUserCircle note: $e');
+      }
+    }
+
+    // 2. HTTP Fallback
+    try {
+      final res = await _client
+          .get(Uri.parse('$baseUrl/api/v1/circles/user/$userId'))
+          .timeout(const Duration(seconds: 2));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['circle'] != null) {
+          return CircleModel.fromJson(data['circle']);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Circle: Join an invite-only circle cohort
+  Future<CircleActionResult> joinCircle({
+    required String userId,
+    required String inviteCode,
+    required String displayName,
+  }) async {
+    final cleanCode = inviteCode.trim().toUpperCase();
+    if (cleanCode.length != 5) {
+      return CircleActionResult.err('Please enter a valid 5-character invite code');
+    }
+
+    // 1. Direct Supabase
+    final client = _supabase;
+    if (client != null) {
+      try {
+        // Ensure profile exists for foreign key constraint
+        await client.from('profiles').upsert({
+          'id': userId,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+
+        final circle = await client
+            .from('circles')
+            .select()
+            .eq('invite_code', cleanCode)
+            .maybeSingle();
+
+        if (circle == null) {
+          return CircleActionResult.err('Invite code "$cleanCode" not found');
+        }
+
+        final circleId = circle['id'] as String;
+        final members = await client.from('circle_members').select().eq('circle_id', circleId);
+        final maxMembers = circle['max_members'] as int? ?? 5;
+
+        // Check if already in circle
+        final alreadyMember = members.any((m) => m['user_id'] == userId);
+        if (!alreadyMember && members.length >= maxMembers) {
+          return CircleActionResult.err('This circle is full (maximum 5 members)');
+        }
+
+        final letter = displayName.trim().isNotEmpty ? displayName.trim()[0].toUpperCase() : 'U';
+        await client.from('circle_members').upsert({
+          'id': 'mem_${userId}_$circleId',
+          'circle_id': circleId,
+          'user_id': userId,
+          'display_name': displayName.trim().isEmpty ? 'You' : displayName.trim(),
+          'avatar_letter': letter,
+          'checked_in_today': true,
+          'weekly_doses_logged': 1,
+          'weekly_doses_target': 7,
+        });
+
+        final updatedMembers = await client.from('circle_members').select().eq('circle_id', circleId);
+        final result = CircleModel(
+          id: circleId,
+          inviteCode: circle['invite_code'] as String,
+          name: circle['name'] as String,
+          members: updatedMembers.map((m) => CircleMemberModel(
+            userId: m['user_id'] as String,
+            displayName: m['display_name'] as String,
+            avatarLetter: (m['avatar_letter'] as String?)?.isNotEmpty == true ? (m['avatar_letter'] as String)[0] : 'U',
+            checkedInToday: m['checked_in_today'] as bool? ?? false,
+            weeklyDosesLogged: m['weekly_doses_logged'] as int? ?? 0,
+            weeklyDosesTarget: m['weekly_doses_target'] as int? ?? 7,
+          )).toList(),
+        );
+        return CircleActionResult.ok(result);
+      } catch (e) {
         debugPrint('Supabase joinCircle direct note: $e');
       }
     }
 
     // 2. HTTP Fallback
     try {
-      final res = await _client.post(
-        Uri.parse('$baseUrl/api/v1/circles/join'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': userId,
-          'inviteCode': inviteCode,
-          'displayName': displayName,
-        }),
-      );
+      final res = await _client
+          .post(
+            Uri.parse('$baseUrl/api/v1/circles/join'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'inviteCode': cleanCode,
+              'displayName': displayName,
+            }),
+          )
+          .timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        return CircleModel.fromJson(data['circle']);
+        return CircleActionResult.ok(CircleModel.fromJson(data['circle']));
+      } else {
+        final data = jsonDecode(res.body);
+        final err = data['error'] as String? ?? 'Failed to join circle';
+        return CircleActionResult.err(err);
       }
     } catch (_) {
       // Offline mode
+      return CircleActionResult.err('Unable to connect. Check internet connection.');
     }
-    return null;
   }
 
   /// Circle: Create a new circle cohort
@@ -304,13 +407,19 @@ class ApiService {
     required String name,
     required String ownerUserId,
     required String ownerDisplayName,
+    String? preferredInviteCode,
   }) async {
-    // 1. Direct Supabase
     final client = _supabase;
+    final code = preferredInviteCode ?? generateInviteCode();
+    final circleId = 'cir_${DateTime.now().millisecondsSinceEpoch}';
+
     if (client != null) {
       try {
-        final circleId = 'cir_${DateTime.now().millisecondsSinceEpoch}';
-        final code = name.length >= 4 ? name.substring(0, 4).toUpperCase() : 'OMNYA';
+        await client.from('profiles').upsert({
+          'id': ownerUserId,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+
         final circleData = await client.from('circles').insert({
           'id': circleId,
           'invite_code': code,
@@ -320,12 +429,13 @@ class ApiService {
         }).select().maybeSingle();
 
         if (circleData != null) {
+          final letter = ownerDisplayName.trim().isNotEmpty ? ownerDisplayName.trim()[0].toUpperCase() : 'Y';
           await client.from('circle_members').insert({
             'id': 'mem_${ownerUserId}_$circleId',
             'circle_id': circleId,
             'user_id': ownerUserId,
             'display_name': ownerDisplayName,
-            'avatar_letter': ownerDisplayName.isNotEmpty ? ownerDisplayName[0].toUpperCase() : 'O',
+            'avatar_letter': letter,
             'checked_in_today': true,
             'weekly_doses_logged': 1,
             'weekly_doses_target': 7,
@@ -339,7 +449,7 @@ class ApiService {
               CircleMemberModel(
                 userId: ownerUserId,
                 displayName: ownerDisplayName,
-                avatarLetter: ownerDisplayName.isNotEmpty ? ownerDisplayName[0].toUpperCase() : 'O',
+                avatarLetter: letter,
                 checkedInToday: true,
                 weeklyDosesLogged: 1,
                 weeklyDosesTarget: 7,
@@ -354,15 +464,18 @@ class ApiService {
 
     // 2. HTTP Fallback
     try {
-      final res = await _client.post(
-        Uri.parse('$baseUrl/api/v1/circles'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'ownerUserId': ownerUserId,
-          'ownerDisplayName': ownerDisplayName,
-        }),
-      );
+      final res = await _client
+          .post(
+            Uri.parse('$baseUrl/api/v1/circles'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name,
+              'ownerUserId': ownerUserId,
+              'ownerDisplayName': ownerDisplayName,
+              'inviteCode': code,
+            }),
+          )
+          .timeout(const Duration(seconds: 2));
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
         return CircleModel.fromJson(data['circle']);
@@ -371,6 +484,44 @@ class ApiService {
       // Offline mode
     }
     return null;
+  }
+
+  /// Circle: Update member check-in & progress upon dose logging
+  Future<bool> updateCircleMemberProgress({
+    required String circleId,
+    required String userId,
+    required bool checkedInToday,
+    required int weeklyDosesLogged,
+  }) async {
+    final client = _supabase;
+    if (client != null) {
+      try {
+        await client.from('circle_members').update({
+          'checked_in_today': checkedInToday,
+          'weekly_doses_logged': weeklyDosesLogged,
+        }).eq('circle_id', circleId).eq('user_id', userId);
+        return true;
+      } catch (e) {
+        debugPrint('Supabase updateCircleMemberProgress note: $e');
+      }
+    }
+
+    try {
+      final res = await _client
+          .post(
+            Uri.parse('$baseUrl/api/v1/circles/$circleId/progress'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userId': userId,
+              'checkedInToday': checkedInToday,
+              'weeklyDosesLogged': weeklyDosesLogged,
+            }),
+          )
+          .timeout(const Duration(seconds: 2));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Circle: Send cheer to a circle cohort member

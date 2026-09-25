@@ -7,6 +7,7 @@ import 'package:peptide_app/data/models/user_profile.dart';
 import 'package:peptide_app/data/models/compound.dart';
 import 'package:peptide_app/data/models/dose_log.dart';
 import 'package:peptide_app/data/models/daily_check_in.dart';
+import 'package:peptide_app/data/models/circle_data.dart';
 
 class MockApiService extends ApiService {
   bool shouldSucceed = true;
@@ -25,6 +26,25 @@ class MockApiService extends ApiService {
     lastSyncedProfile = profile;
     return shouldSucceed;
   }
+
+  @override
+  Future<CircleModel?> fetchUserCircle(String userId) async => null;
+
+  @override
+  Future<CircleModel?> createCircle({
+    required String name,
+    required String ownerUserId,
+    required String ownerDisplayName,
+    String? preferredInviteCode,
+  }) async => null;
+
+  @override
+  Future<bool> updateCircleMemberProgress({
+    required String circleId,
+    required String userId,
+    required bool checkedInToday,
+    required int weeklyDosesLogged,
+  }) async => shouldSucceed;
 }
 
 void main() {
@@ -40,7 +60,7 @@ void main() {
       storage = await LocalStorageService.init();
       mockApi = MockApiService();
       repo = ProtocolRepository(storage: storage, api: mockApi);
-      await Future.delayed(const Duration(milliseconds: 20));
+      await Future.delayed(const Duration(milliseconds: 100));
     });
 
     test('LocalStorageService tracks hasPendingSync and lastSyncTimestamp', () async {

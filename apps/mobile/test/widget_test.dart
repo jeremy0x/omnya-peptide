@@ -17,6 +17,63 @@ import 'package:peptide_app/ui/features/photo_read/weekly_photo_read_view.dart';
 import 'package:peptide_app/ui/onboarding/onboarding_quiz_view.dart';
 import 'package:peptide_app/ui/splash/splash_view.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:peptide_app/data/models/circle_data.dart';
+import 'package:peptide_app/data/models/compound.dart';
+import 'package:peptide_app/data/models/dose_log.dart';
+import 'package:peptide_app/data/models/daily_check_in.dart';
+import 'package:peptide_app/data/models/user_profile.dart';
+
+class MockWidgetApiService extends ApiService {
+  @override
+  Future<bool> pushSync({
+    required String userId,
+    UserProfile? profile,
+    List<Compound>? compounds,
+    List<DoseLog>? doseLogs,
+    List<DailyCheckIn>? checkIns,
+  }) async => true;
+
+  @override
+  Future<CircleModel?> fetchUserCircle(String userId) async => null;
+
+  @override
+  Future<CircleModel?> createCircle({
+    required String name,
+    required String ownerUserId,
+    required String ownerDisplayName,
+    String? preferredInviteCode,
+  }) async => null;
+
+  @override
+  Future<CircleActionResult> joinCircle({
+    required String userId,
+    required String inviteCode,
+    required String displayName,
+  }) async => CircleActionResult.ok(
+        CircleModel(
+          id: 'test_circle',
+          inviteCode: inviteCode,
+          name: 'Test Circle',
+          members: [
+            CircleMemberModel(
+              userId: userId,
+              displayName: displayName,
+              avatarLetter: displayName.isNotEmpty ? displayName[0] : 'Y',
+              checkedInToday: true,
+              weeklyDosesLogged: 1,
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Future<bool> updateCircleMemberProgress({
+    required String circleId,
+    required String userId,
+    required bool checkedInToday,
+    required int weeklyDosesLogged,
+  }) async => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,8 +83,10 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     final storage = await LocalStorageService.init();
-    final api = ApiService();
+    final api = MockWidgetApiService();
     repo = ProtocolRepository(storage: storage, api: api);
+    // Let the unawaited syncWithCloud() → _syncCircleInternal() futures settle
+    await Future.delayed(const Duration(milliseconds: 100));
   });
 
   Widget buildTestWidget(Widget child) {
@@ -126,7 +185,8 @@ void main() {
 
   testWidgets('StackView renders compound inventory cards and monthly spend', (tester) async {
     await tester.pumpWidget(buildTestWidget(const StackView()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Stack'), findsOneWidget);
     expect(find.text('This month'), findsOneWidget);
@@ -136,17 +196,51 @@ void main() {
   });
 
   testWidgets('CircleView renders member avatars and consistency list', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(buildTestWidget(const CircleView()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Circle'), findsOneWidget);
     expect(find.text('Consistency this week'), findsOneWidget);
     expect(find.text('Mia'), findsWidgets);
+
+    // Test Join Circle mobile bottom sheet
+    await tester.tap(find.text('Join with code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Join Circle'), findsWidgets);
+    expect(find.text('• • • • •'), findsOneWidget);
+    expect(find.text('Your Name in Circle'), findsOneWidget);
+
+    // Close join sheet
+    Navigator.of(tester.element(find.text('• • • • •'))).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Test Invite to Circle mobile bottom sheet
+    await tester.tap(find.text('Share invite link'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Invite to Circle'), findsOneWidget);
+    expect(find.text('Copy Invite Code'), findsOneWidget);
+
+    // Close invite sheet
+    Navigator.of(tester.element(find.text('Invite to Circle'))).pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
   testWidgets('ProgressView renders before/after slider and cycle band', (tester) async {
     await tester.pumpWidget(buildTestWidget(const ProgressView()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Progress'), findsOneWidget);
     expect(find.text('Weight, with cycle band'), findsOneWidget);
@@ -161,7 +255,8 @@ void main() {
     });
 
     await tester.pumpWidget(buildTestWidget(const PaywallView()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Monthly'), findsOneWidget);
     expect(find.text('Yearly'), findsOneWidget);
@@ -179,7 +274,8 @@ void main() {
     });
 
     await tester.pumpWidget(buildTestWidget(const WeeklyPhotoReadView()));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Your week in photos'), findsOneWidget);
     expect(find.text('Aug 25'), findsOneWidget);
@@ -195,7 +291,8 @@ void main() {
     });
 
     await tester.pumpWidget(buildTestWidget(OnboardingQuizView(onFinished: () {})));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('1 of 6'), findsOneWidget);
     expect(find.text('Skip'), findsOneWidget);
