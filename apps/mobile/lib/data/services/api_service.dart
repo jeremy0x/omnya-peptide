@@ -32,7 +32,7 @@ class ApiService {
   final http.Client _client;
 
   ApiService({
-    this.baseUrl = 'http://127.0.0.1:3000',
+    this.baseUrl = 'https://omnya-peptide.onrender.com',
     http.Client? client,
   }) : _client = client ?? http.Client();
 
