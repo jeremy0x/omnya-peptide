@@ -15,6 +15,7 @@ import '../photo_read/weekly_photo_read_view.dart';
 import '../../../core/widgets/omnya_pro_badge.dart';
 import '../../onboarding/paywall_view.dart';
 import '../../onboarding/onboarding_quiz_view.dart';
+import 'immersive_dose_log_view.dart';
 
 
 class TodayView extends StatefulWidget {
@@ -263,6 +264,7 @@ class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
                             compoundName: nextCompound?.name ?? 'Retatrutide',
                             nextSite: nextCompound?.injectionSite ?? 'Right thigh',
                             onLog: () {
+                              final currentSite = nextCompound?.injectionSite ?? 'Left thigh';
                               if (nextCompound != null) {
                                 repo.logDose(
                                   compoundId: nextCompound.id,
@@ -270,9 +272,34 @@ class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
                                 );
                               }
                               setState(() => _doseLoggedToday = true);
+
+                              final updatedNextSite = repo.compounds.isNotEmpty
+                                  ? repo.compounds.first.injectionSite
+                                  : 'Right thigh';
+
+                              ImmersiveDoseLogView.show(
+                                context,
+                                compoundName: nextCompound?.name ?? 'Retatrutide',
+                                doseMg: nextCompound?.doseMg ?? 2.0,
+                                injectionSite: currentSite,
+                                nextSite: updatedNextSite,
+                                category: nextCompound?.category.label ?? 'body',
+                              );
                             },
                             onUndo: () {
                               setState(() => _doseLoggedToday = false);
+                            },
+                            onViewDetails: () {
+                              ImmersiveDoseLogView.show(
+                                context,
+                                compoundName: nextCompound?.name ?? 'Retatrutide',
+                                doseMg: nextCompound?.doseMg ?? 2.0,
+                                injectionSite: nextCompound?.injectionSite ?? 'Left thigh',
+                                nextSite: repo.compounds.isNotEmpty
+                                    ? repo.compounds.first.injectionSite
+                                    : 'Right thigh',
+                                category: nextCompound?.category.label ?? 'body',
+                              );
                             },
                           ),
                         ],

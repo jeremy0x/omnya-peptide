@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../theme/omnya_colors.dart';
 import 'tactile_button.dart';
 
@@ -15,6 +16,7 @@ class DoseCelebrationAction extends StatefulWidget {
   final String nextSite;
   final VoidCallback onLog;
   final VoidCallback onUndo;
+  final VoidCallback? onViewDetails;
 
   const DoseCelebrationAction({
     super.key,
@@ -23,6 +25,7 @@ class DoseCelebrationAction extends StatefulWidget {
     required this.nextSite,
     required this.onLog,
     required this.onUndo,
+    this.onViewDetails,
   });
 
   @override
@@ -137,59 +140,77 @@ class _DoseCelebrationActionState extends State<DoseCelebrationAction>
         ? widget.compoundName.substring(0, 4)
         : widget.compoundName;
 
-    return Container(
-      width: double.infinity,
-      height: 54, // Matches TactileButton height exactly to prevent layout shifts
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.22),
-          width: 1.0,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onViewDetails?.call();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        height: 54, // Matches TactileButton height exactly to prevent layout shifts
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.22),
+            width: 1.0,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Logged $shortName',
-            style: const TextStyle(
-              fontFamily: 'InstrumentSans',
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: OmnyaColors.cream,
-              letterSpacing: -0.2,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                  color: const Color(0xFF4ADE80),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Logged $shortName',
+                  style: const TextStyle(
+                    fontFamily: 'InstrumentSans',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: OmnyaColors.cream,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
             ),
-          ),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              widget.onUndo();
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  width: 0.8,
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onUndo();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.20),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Text(
+                  'Undo',
+                  style: TextStyle(
+                    fontFamily: 'InstrumentSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: OmnyaColors.sandMuted,
+                  ),
                 ),
               ),
-              child: const Text(
-                'Undo',
-                style: TextStyle(
-                  fontFamily: 'InstrumentSans',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: OmnyaColors.sandMuted,
-                ),
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

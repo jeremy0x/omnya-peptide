@@ -92,18 +92,20 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
       label = 'Cloud synced';
     }
 
+    final isCircular = !widget.showLabel;
+
     return GestureDetector(
       onTap: () => _onTap(context, repo),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: widget.showLabel ? 10 : 8,
-          vertical: 6,
-        ),
+        padding: isCircular
+            ? const EdgeInsets.all(8)
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF282523) : OmnyaColors.cream,
-          borderRadius: BorderRadius.circular(16),
+          shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+          borderRadius: isCircular ? null : BorderRadius.circular(16),
           border: Border.all(
             color: repo.hasPendingSync
                 ? statusColor.withValues(alpha: 0.5)
@@ -112,8 +114,8 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -125,7 +127,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
             HugeIcon(
               icon: icon,
               color: statusColor,
-              size: 16,
+              size: 18,
             ),
             if (repo.isSyncing) ...[
               const SizedBox(width: 5),
