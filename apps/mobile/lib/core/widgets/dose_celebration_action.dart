@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hugeicons/hugeicons.dart';
 import '../theme/omnya_colors.dart';
 import 'tactile_button.dart';
 
@@ -161,26 +160,15 @@ class _DoseCelebrationActionState extends State<DoseCelebrationAction>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedCheckmarkCircle02,
-                  color: const Color(0xFF4ADE80),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Logged $shortName',
-                  style: const TextStyle(
-                    fontFamily: 'InstrumentSans',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: OmnyaColors.cream,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ],
+            Text(
+              'Logged $shortName',
+              style: const TextStyle(
+                fontFamily: 'InstrumentSans',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: OmnyaColors.cream,
+                letterSpacing: -0.2,
+              ),
             ),
             GestureDetector(
               onTap: () {
