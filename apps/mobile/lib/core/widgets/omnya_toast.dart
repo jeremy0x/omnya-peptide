@@ -194,13 +194,13 @@ class _OmnyaToastState extends State<_OmnyaToastWidget>
     final dynamic iconData;
     switch (widget.type) {
       case OmnyaToastType.success:
-        iconData = HugeIcons.strokeRoundedTick02;
+        iconData = HugeIcons.strokeRoundedCheckmarkCircle02;
         break;
       case OmnyaToastType.warning:
-        iconData = HugeIcons.strokeRoundedAlert02;
+        iconData = HugeIcons.strokeRoundedAlertCircle;
         break;
       case OmnyaToastType.error:
-        iconData = HugeIcons.strokeRoundedCancel01;
+        iconData = HugeIcons.strokeRoundedCancelCircle;
         break;
       case OmnyaToastType.info:
         iconData = HugeIcons.strokeRoundedSparkles;
