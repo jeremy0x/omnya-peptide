@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
@@ -24,6 +26,89 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
   bool _showingGhostCamera = false;
   bool _isUploading = false;
   String? _uploadedPhotoUrl;
+
+  List<CameraDescription> _availableCameras = [];
+  CameraController? _cameraController;
+  bool _isCameraReady = false;
+  bool _isCameraInitializing = false;
+  int _currentCameraIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera({int? cameraIndex}) async {
+    if (_isCameraInitializing) return;
+    _isCameraInitializing = true;
+
+    try {
+      if (_availableCameras.isEmpty) {
+        _availableCameras = await availableCameras();
+      }
+
+      if (_availableCameras.isNotEmpty) {
+        int idx = cameraIndex ?? 0;
+        if (cameraIndex == null) {
+          // Default to front camera for face alignment if available
+          final frontIdx = _availableCameras.indexWhere(
+            (c) => c.lensDirection == CameraLensDirection.front,
+          );
+          if (frontIdx != -1) idx = frontIdx;
+        }
+
+        _currentCameraIndex = idx;
+        final oldController = _cameraController;
+        _cameraController = null;
+        await oldController?.dispose();
+
+        final controller = CameraController(
+          _availableCameras[_currentCameraIndex],
+          ResolutionPreset.medium,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+
+        await controller.initialize();
+        if (mounted) {
+          setState(() {
+            _cameraController = controller;
+            _isCameraReady = true;
+            _isCameraInitializing = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isCameraReady = false;
+            _isCameraInitializing = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Camera init note: $e');
+      if (mounted) {
+        setState(() {
+          _isCameraReady = false;
+          _isCameraInitializing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _flipCamera() async {
+    if (_availableCameras.length < 2) return;
+    HapticFeedback.lightImpact();
+    final nextIdx = (_currentCameraIndex + 1) % _availableCameras.length;
+    await _initCamera(cameraIndex: nextIdx);
+  }
 
   Future<Uint8List> _generateCheckInPhotoBytes() async {
     final recorder = ui.PictureRecorder();
@@ -79,11 +164,34 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
     });
 
     try {
-      final photoBytes = await _generateCheckInPhotoBytes();
+      Uint8List? photoBytes;
+
+      if (_isCameraReady &&
+          _cameraController != null &&
+          _cameraController!.value.isInitialized) {
+        final xFile = await _cameraController!.takePicture();
+        photoBytes = await xFile.readAsBytes();
+      } else {
+        // Fallback to ImagePicker if live camera wasn't initialized
+        final picker = ImagePicker();
+        final picked = await picker.pickImage(
+          source: ImageSource.camera,
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+        if (picked != null) {
+          photoBytes = await picked.readAsBytes();
+        } else {
+          // If cancelled, fallback to check-in silhouette
+          photoBytes = await _generateCheckInPhotoBytes();
+        }
+      }
+
       final imgbb = ImgbbService();
       final result = await imgbb.uploadBytes(
         photoBytes,
-        fileName: 'omnya_checkin_${DateTime.now().millisecondsSinceEpoch}.png',
+        fileName: 'omnya_checkin_${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
       if (!mounted) return;
@@ -99,6 +207,7 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
         ),
       );
     } catch (e) {
+      debugPrint('Photo capture error: $e');
       if (!mounted) return;
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -107,6 +216,48 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
           backgroundColor: OmnyaColors.plum,
         ),
       );
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    HapticFeedback.lightImpact();
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      setState(() {
+        _showingGhostCamera = false;
+        _isUploading = true;
+      });
+
+      final bytes = await picked.readAsBytes();
+      final imgbb = ImgbbService();
+      final result = await imgbb.uploadBytes(
+        bytes,
+        fileName: 'omnya_checkin_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      if (!mounted) return;
+      context.read<ProtocolRepository>().attachWeeklyPhoto(result.displayUrl);
+      setState(() {
+        _uploadedPhotoUrl = result.displayUrl;
+        _isUploading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Weekly photo attached from gallery'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploading = false);
     }
   }
 
@@ -644,9 +795,7 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                    },
+                    onPressed: _flipCamera,
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedSwitchCamera,
                       color: Colors.white,
@@ -658,7 +807,7 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
             ),
           ),
 
-          // 2. Camera viewfinder with minimal framing brackets
+          // 2. Camera viewfinder with minimal framing brackets and live preview
           Expanded(
             child: Container(
               width: double.infinity,
@@ -672,54 +821,130 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
                       height: 340,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(24),
+                        color: const Color(0xFF1E1A17),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.25),
                           width: 1.5,
                         ),
                       ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            top: 12,
-                            left: 12,
-                            child: Container(width: 18, height: 2, color: Colors.white70),
-                          ),
-                          Positioned(
-                            top: 12,
-                            left: 12,
-                            child: Container(width: 2, height: 18, color: Colors.white70),
-                          ),
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: Container(width: 18, height: 2, color: Colors.white70),
-                          ),
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: Container(width: 2, height: 18, color: Colors.white70),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            left: 12,
-                            child: Container(width: 18, height: 2, color: Colors.white70),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            left: 12,
-                            child: Container(width: 2, height: 18, color: Colors.white70),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: Container(width: 18, height: 2, color: Colors.white70),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: Container(width: 2, height: 18, color: Colors.white70),
-                          ),
-                        ],
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            // Live camera preview or status placeholder
+                            if (_isCameraReady &&
+                                _cameraController != null &&
+                                _cameraController!.value.isInitialized)
+                              FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: _cameraController!.value.previewSize?.height ?? 260,
+                                  height: _cameraController!.value.previewSize?.width ?? 340,
+                                  child: CameraPreview(_cameraController!),
+                                ),
+                              )
+                            else if (_isCameraInitializing)
+                              const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: OmnyaColors.sandMuted,
+                                      ),
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'Starting camera...',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedCamera01,
+                                      color: Colors.white54,
+                                      size: 32,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const Text(
+                                      'Position face in frame',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextButton(
+                                      onPressed: () => _initCamera(),
+                                      child: const Text(
+                                        'Retry camera',
+                                        style: TextStyle(
+                                          color: OmnyaColors.sandMuted,
+                                          fontSize: 12,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                            // Framing brackets overlay
+                            Positioned(
+                              top: 12,
+                              left: 12,
+                              child: Container(width: 18, height: 2, color: Colors.white70),
+                            ),
+                            Positioned(
+                              top: 12,
+                              left: 12,
+                              child: Container(width: 2, height: 18, color: Colors.white70),
+                            ),
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Container(width: 18, height: 2, color: Colors.white70),
+                            ),
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Container(width: 2, height: 18, color: Colors.white70),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              left: 12,
+                              child: Container(width: 18, height: 2, color: Colors.white70),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              left: 12,
+                              child: Container(width: 2, height: 18, color: Colors.white70),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: Container(width: 18, height: 2, color: Colors.white70),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: Container(width: 2, height: 18, color: Colors.white70),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -739,29 +964,70 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
             ),
           ),
 
-          // 3. Bottom controls: Clean tactile shutter button
+          // 3. Bottom controls: Gallery, Shutter, and Switch Camera buttons
           Padding(
-            padding: const EdgeInsets.only(top: 24, bottom: 32),
-            child: Center(
-              child: GestureDetector(
-                onTap: _handlePhotoCaptured,
-                child: Container(
-                  width: 78,
-                  height: 78,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3.5),
-                    color: Colors.transparent,
-                  ),
-                  padding: const EdgeInsets.all(5),
-                  child: Container(
-                    decoration: const BoxDecoration(
+            padding: const EdgeInsets.only(top: 20, bottom: 32, left: 36, right: 36),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Pick from gallery
+                IconButton(
+                  onPressed: _pickFromGallery,
+                  tooltip: 'Choose from Gallery',
+                  icon: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
-                      color: OmnyaColors.plum,
+                    ),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedImage01,
+                      color: Colors.white,
+                      size: 22,
                     ),
                   ),
                 ),
-              ),
+
+                // Primary shutter capture button
+                GestureDetector(
+                  onTap: _handlePhotoCaptured,
+                  child: Container(
+                    width: 78,
+                    height: 78,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3.5),
+                      color: Colors.transparent,
+                    ),
+                    padding: const EdgeInsets.all(5),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: OmnyaColors.plum,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Switch front/back camera
+                IconButton(
+                  onPressed: _flipCamera,
+                  tooltip: 'Switch Camera',
+                  icon: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedSwitchCamera,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

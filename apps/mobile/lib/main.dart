@@ -89,8 +89,8 @@ class _OmnyaAppState extends State<OmnyaApp> with WidgetsBindingObserver {
       title: 'Omnya',
       debugShowCheckedModeBanner: false,
       theme: OmnyaTheme.lightTheme,
-      darkTheme: OmnyaTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      darkTheme: OmnyaTheme.lightTheme,
+      themeMode: ThemeMode.light,
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),
         switchInCurve: Curves.easeOutCubic,

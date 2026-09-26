@@ -199,11 +199,21 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: (_currentStep + 1) / 6.0,
-                minHeight: 3,
-                backgroundColor: isDark ? const Color(0xFF282523) : OmnyaColors.sandMuted,
-                valueColor: const AlwaysStoppedAnimation<Color>(OmnyaColors.plum),
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                tween: Tween<double>(
+                  begin: 0.0,
+                  end: (_currentStep + 1) / 6.0,
+                ),
+                builder: (context, value, _) {
+                  return LinearProgressIndicator(
+                    value: value,
+                    minHeight: 3,
+                    backgroundColor: isDark ? const Color(0xFF282523) : OmnyaColors.sandMuted,
+                    valueColor: const AlwaysStoppedAnimation<Color>(OmnyaColors.plum),
+                  );
+                },
               ),
             ),
           ),

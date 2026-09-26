@@ -126,8 +126,6 @@ class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SyncStatusIndicator(),
-                          const SizedBox(width: 8),
                           OmnyaProBadge(
                             onTap: () {
                               Navigator.push(
@@ -136,6 +134,8 @@ class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
                               );
                             },
                           ),
+                          const SizedBox(width: 8),
+                          const SyncStatusIndicator(),
                           const SizedBox(width: 8),
                         GestureDetector(
                           onTap: () {

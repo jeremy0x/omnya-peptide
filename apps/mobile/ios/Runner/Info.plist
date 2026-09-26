@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Omnya uses the camera to capture weekly check-in photos for protocol tracking.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Omnya uses your photo library to select photos for weekly protocol check-ins.</string>
 </dict>
 </plist>
