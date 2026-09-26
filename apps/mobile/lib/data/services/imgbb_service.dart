@@ -37,7 +37,10 @@ class ImgbbUploadResult {
 }
 
 class ImgbbService {
-  static const String defaultApiKey = '7961694b769c875edb3f7bccb84872d7';
+  static const String defaultApiKey = String.fromEnvironment(
+    'IMGBB_API_KEY',
+    defaultValue: '7961694b769c875edb3f7bccb84872d7',
+  );
   static const int maxFileSizeBytes = 10 * 1024 * 1024; // 10MB limit
 
   final String apiKey;
