@@ -111,8 +111,11 @@ ALTER TABLE public.circle_members ENABLE ROW LEVEL SECURITY;
 -- Service role retains full bypass capability for server operations.
 -- ==============================================================================
 
+-- Create private schema not exposed over PostgREST API
+CREATE SCHEMA IF NOT EXISTS app_private;
+
 -- Helper function to check circle membership without recursive RLS trigger
-CREATE OR REPLACE FUNCTION public.is_circle_member(_circle_id text, _user_id text)
+CREATE OR REPLACE FUNCTION app_private.is_circle_member(_circle_id text, _user_id text)
 RETURNS boolean
 LANGUAGE sql
 SECURITY DEFINER
@@ -125,7 +128,8 @@ AS $$
   );
 $$;
 
-REVOKE ALL ON FUNCTION public.is_circle_member(text, text) FROM PUBLIC, anon, authenticated;
+GRANT USAGE ON SCHEMA app_private TO authenticated;
+GRANT EXECUTE ON FUNCTION app_private.is_circle_member(text, text) TO authenticated;
 
 -- Profiles: scoped to owner
 CREATE POLICY "profiles_select" ON public.profiles
@@ -170,7 +174,7 @@ CREATE POLICY "check_ins_upsert" ON public.check_ins
 -- Circles: readable by members, manageable by owner
 CREATE POLICY "circles_select" ON public.circles
   FOR SELECT TO authenticated
-  USING (public.is_circle_member(id, auth.uid()::text));
+  USING (app_private.is_circle_member(id, auth.uid()::text));
 
 CREATE POLICY "circles_insert" ON public.circles
   FOR INSERT TO authenticated
@@ -184,7 +188,7 @@ CREATE POLICY "circles_update" ON public.circles
 -- Circle Members: readable by fellow members, insert/update own membership
 CREATE POLICY "circle_members_select" ON public.circle_members
   FOR SELECT TO authenticated
-  USING (public.is_circle_member(circle_id, auth.uid()::text));
+  USING (app_private.is_circle_member(circle_id, auth.uid()::text));
 
 CREATE POLICY "circle_members_insert" ON public.circle_members
   FOR INSERT TO authenticated
