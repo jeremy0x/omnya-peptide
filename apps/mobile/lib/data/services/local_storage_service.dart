@@ -5,6 +5,7 @@ import '../models/dose_log.dart';
 import '../models/daily_check_in.dart';
 import '../models/circle_data.dart';
 import '../models/user_profile.dart';
+import 'api_service.dart';
 import '../../core/constants/compound_directory.dart';
 
 class LocalStorageService {
@@ -100,10 +101,10 @@ class LocalStorageService {
 
       await saveCompounds(defaultCompounds);
 
-      // Seed default circle
+      // Seed default circle with personal invite code
       final defaultCircle = CircleModel(
         id: 'circ_omnya_default',
-        inviteCode: 'OMNYA',
+        inviteCode: ApiService.generateInviteCode(),
         name: 'Sunday Glow Cohort',
         members: [
           CircleMemberModel(
@@ -235,7 +236,13 @@ class LocalStorageService {
     final raw = _prefs.getString(_kCircleKey);
     if (raw == null) return null;
     try {
-      return CircleModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final circle = CircleModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      if (circle.inviteCode == 'OMNYA' || circle.inviteCode.trim().isEmpty) {
+        final upgraded = circle.copyWith(inviteCode: ApiService.generateInviteCode());
+        saveCircle(upgraded);
+        return upgraded;
+      }
+      return circle;
     } catch (_) {
       return null;
     }

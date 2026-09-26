@@ -43,6 +43,10 @@ class ProtocolRepository extends ChangeNotifier {
     _doseLogs = storage.getDoseLogs();
     _checkIns = storage.getCheckIns();
     _circle = storage.getCircle();
+    if (_circle != null && (_circle!.inviteCode == 'OMNYA' || _circle!.inviteCode.isEmpty)) {
+      _circle = _circle!.copyWith(inviteCode: ApiService.generateInviteCode());
+      storage.saveCircle(_circle!);
+    }
     _profile = storage.getProfile();
     notifyListeners();
     syncWithCloud();
@@ -92,16 +96,26 @@ class ProtocolRepository extends ChangeNotifier {
         _circle = userCircle;
         await storage.saveCircle(userCircle);
         notifyListeners();
-      } else if (_circle == null) {
-        final created = await api.createCircle(
-          name: 'My Cohort',
-          ownerUserId: userId,
-          ownerDisplayName: 'You',
-        );
-        if (created != null) {
-          _circle = created;
-          await storage.saveCircle(created);
-          notifyListeners();
+      } else {
+        final assignedCode = await api.fetchUserInviteCode(userId);
+        if (assignedCode != null && assignedCode.isNotEmpty) {
+          if (_circle != null) {
+            _circle = _circle!.copyWith(inviteCode: assignedCode);
+            await storage.saveCircle(_circle!);
+            notifyListeners();
+          } else {
+            final created = await api.createCircle(
+              name: 'My Cohort',
+              ownerUserId: userId,
+              ownerDisplayName: 'You',
+              preferredInviteCode: assignedCode,
+            );
+            if (created != null) {
+              _circle = created;
+              await storage.saveCircle(created);
+              notifyListeners();
+            }
+          }
         }
       }
     } catch (_) {}

@@ -295,7 +295,28 @@ class ApiService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['circle'] != null) {
-          return CircleModel.fromJson(data['circle']);
+          final circle = CircleModel.fromJson(data['circle']);
+          final assignedCode = data['userInviteCode'] as String?;
+          if (assignedCode != null && assignedCode.isNotEmpty) {
+            return circle.copyWith(inviteCode: assignedCode);
+          }
+          return circle;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Fetch or assign personal invite code specially assigned by backend
+  Future<String?> fetchUserInviteCode(String userId) async {
+    try {
+      final res = await _client
+          .get(Uri.parse('$baseUrl/api/v1/users/$userId/invite-code'))
+          .timeout(const Duration(seconds: 2));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['inviteCode'] != null) {
+          return data['inviteCode'] as String;
         }
       }
     } catch (_) {}

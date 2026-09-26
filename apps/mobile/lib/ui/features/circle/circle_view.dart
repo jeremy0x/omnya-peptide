@@ -8,6 +8,7 @@ import '../../../core/widgets/liquid_glass_container.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/models/circle_data.dart';
 import '../../../data/repositories/protocol_repository.dart';
+import '../../../data/services/api_service.dart';
 import '../../../core/widgets/omnya_toast.dart';
 import '../../core/omnya_header.dart';
 
@@ -266,7 +267,10 @@ class _CircleViewState extends State<CircleView> {
 
   void _showInviteSheet(BuildContext context, CircleModel? circle) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inviteCode = circle?.inviteCode ?? 'OMNYA';
+    final rawCode = circle?.inviteCode;
+    final inviteCode = (rawCode != null && rawCode.isNotEmpty && rawCode != 'OMNYA')
+        ? rawCode
+        : ApiService.generateInviteCode();
     final memberCount = circle?.members.length ?? 1;
     final spotsLeft = (5 - memberCount).clamp(0, 5);
 

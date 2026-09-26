@@ -1,5 +1,14 @@
 import { DeviceUser, CompoundRecord, DoseLogRecord, CheckInRecord, CircleGroup } from './types.js';
 
+export function generateCleanInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 class InMemoryStore {
   public users: Map<string, DeviceUser> = new Map();
   public compounds: Map<string, CompoundRecord[]> = new Map(); // userId -> compounds
@@ -7,20 +16,43 @@ class InMemoryStore {
   public checkIns: Map<string, CheckInRecord[]> = new Map(); // userId -> check-ins
   public circles: Map<string, CircleGroup> = new Map(); // circleId -> CircleGroup
   public inviteCodeMap: Map<string, string> = new Map(); // inviteCode -> circleId
+  public userInviteCodes: Map<string, string> = new Map(); // userId -> unique assigned inviteCode
 
   constructor() {
     this.seedDemoData();
   }
 
+  public getOrCreateUserInviteCode(userId: string, circleId?: string): string {
+    if (this.userInviteCodes.has(userId)) {
+      const existing = this.userInviteCodes.get(userId)!;
+      if (circleId) {
+        this.inviteCodeMap.set(existing, circleId);
+      }
+      return existing;
+    }
+
+    let code: string;
+    do {
+      code = generateCleanInviteCode();
+    } while (this.inviteCodeMap.has(code));
+
+    this.userInviteCodes.set(userId, code);
+    if (circleId) {
+      this.inviteCodeMap.set(code, circleId);
+    }
+    return code;
+  }
+
   private seedDemoData() {
-    // Seed a demo circle with members as illustrated in product spec page 2:
-    // S M J A (Mia 7/7, You 6/7, Jess 5/7 - 4 of 5 checked in today)
     const demoCircleId = 'circle_demo_01';
-    const demoInvite = 'OMNYA';
+    // Generate clean unique invite codes for the demo cohort
+    const miaCode = this.getOrCreateUserInviteCode('user_mia', demoCircleId);
+    this.getOrCreateUserInviteCode('user_you', demoCircleId);
+    this.getOrCreateUserInviteCode('usr_local_seed', demoCircleId);
     
     const demoCircle: CircleGroup = {
       id: demoCircleId,
-      inviteCode: demoInvite,
+      inviteCode: miaCode,
       name: "Sunday Glow Cohort",
       creatorId: "user_mia",
       maxMembers: 5,
@@ -66,7 +98,7 @@ class InMemoryStore {
     };
 
     this.circles.set(demoCircleId, demoCircle);
-    this.inviteCodeMap.set(demoInvite, demoCircleId);
+    this.inviteCodeMap.set(miaCode, demoCircleId);
   }
 
   getOrCreateUser(deviceId: string): DeviceUser {

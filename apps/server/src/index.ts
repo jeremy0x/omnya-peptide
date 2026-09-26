@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import { z } from 'zod';
 import { store } from './store.js';
-import { CircleMember } from './types.js';
+import { CircleMember, CircleGroup } from './types.js';
 import { pushUserDataToSupabase } from './supabase.js';
 
 export async function buildApp() {
@@ -117,8 +117,8 @@ export async function buildApp() {
 
     const { userId, name, displayName } = parsed.data;
     const circleId = `circ_${Date.now()}`;
-    // Generate clean 5-character alphanumeric invite code
-    const inviteCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    // Assign clean 5-character alphanumeric invite code specially for this user
+    const inviteCode = store.getOrCreateUserInviteCode(userId, circleId);
 
     const member: CircleMember = {
       userId,
@@ -205,15 +205,55 @@ export async function buildApp() {
     };
   });
 
-  // Circles: Fetch circle for a specific user
+  // Circles: Fetch circle for a specific user with personal invite code assigned specially
   app.get('/api/v1/circles/user/:userId', async (req, reply) => {
     const { userId } = req.params as { userId: string };
     for (const circle of store.circles.values()) {
       if (circle.members.some((m) => m.userId === userId)) {
-        return { circle };
+        const userCode = store.getOrCreateUserInviteCode(userId, circle.id);
+        return {
+          circle: {
+            ...circle,
+            inviteCode: userCode,
+          },
+          userInviteCode: userCode,
+        };
       }
     }
-    return reply.status(404).send({ error: 'Circle not found for user' });
+
+    // Auto-provision circle with user's personal invite code
+    const userCode = store.getOrCreateUserInviteCode(userId);
+    const circleId = `circ_${userId}`;
+    const userCircle: CircleGroup = {
+      id: circleId,
+      inviteCode: userCode,
+      name: "Accountability Circle",
+      creatorId: userId,
+      maxMembers: 5,
+      createdAt: new Date().toISOString(),
+      members: [
+        {
+          userId,
+          displayName: "You",
+          avatarLetter: "Y",
+          checkedInToday: true,
+          weeklyDosesLogged: 1,
+          weeklyDosesTarget: 7,
+          lastActive: new Date().toISOString(),
+        }
+      ]
+    };
+    store.circles.set(circleId, userCircle);
+    store.inviteCodeMap.set(userCode, circleId);
+
+    return { circle: userCircle, userInviteCode: userCode };
+  });
+
+  // Users: Fetch personal invite code assigned specially by backend
+  app.get('/api/v1/users/:userId/invite-code', async (req, reply) => {
+    const { userId } = req.params as { userId: string };
+    const inviteCode = store.getOrCreateUserInviteCode(userId);
+    return { userId, inviteCode };
   });
 
   // Circles: Update member check-in progress
