@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/omnya_colors.dart';
 import '../../core/theme/omnya_typography.dart';
 import '../../core/widgets/tactile_button.dart';
@@ -59,8 +60,15 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
 
   Future<void> _showPersonalizedProtocolScreen() async {
     final repo = context.read<ProtocolRepository>();
+    // Use Supabase auth.uid() so profile ID matches RLS policies
+    String userId;
+    try {
+      userId = Supabase.instance.client.auth.currentUser!.id;
+    } catch (_) {
+      userId = 'usr_${DateTime.now().millisecondsSinceEpoch}';
+    }
     final profile = UserProfile(
-      id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+      id: userId,
       goals: _selectedGoals.toList(),
       selectedCompounds: _selectedCompounds.toList(),
       experienceLevel: _experienceLevel,

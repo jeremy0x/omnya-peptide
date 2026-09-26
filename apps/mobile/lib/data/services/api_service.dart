@@ -44,13 +44,22 @@ class ApiService {
     }
   }
 
+  /// Returns the Supabase auth user ID if signed in, otherwise the fallback.
+  String _authUserId(String fallback) {
+    try {
+      return Supabase.instance.client.auth.currentUser?.id ?? fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   /// Register or verify anonymous device with backend / Supabase
   Future<Map<String, dynamic>?> registerAnonymousDevice(String deviceId) async {
     // 1. Direct Supabase
     final client = _supabase;
     if (client != null) {
       try {
-        final userId = 'usr_$deviceId';
+        final userId = _authUserId('usr_$deviceId');
         final data = await client.from('profiles').upsert({
           'id': userId,
           'device_id': deviceId,
@@ -92,10 +101,12 @@ class ApiService {
     final client = _supabase;
     if (client != null) {
       try {
+        final authId = _authUserId(userId);
+
         // Upsert user profile
         if (profile != null) {
           await client.from('profiles').upsert({
-            'id': profile.id,
+            'id': authId,
             'goals': profile.goals,
             'selected_compounds': profile.selectedCompounds,
             'experience_level': profile.experienceLevel,
@@ -108,7 +119,7 @@ class ApiService {
           });
         } else {
           await client.from('profiles').upsert({
-            'id': userId,
+            'id': authId,
             'updated_at': DateTime.now().toIso8601String(),
           });
         }
@@ -117,7 +128,7 @@ class ApiService {
         if (compounds != null && compounds.isNotEmpty) {
           final compData = compounds.map((c) => {
             'id': c.id,
-            'user_id': userId,
+            'user_id': authId,
             'name': c.name,
             'nickname': c.nickname,
             'category': c.category.name,
@@ -140,7 +151,7 @@ class ApiService {
         if (doseLogs != null && doseLogs.isNotEmpty) {
           final doseData = doseLogs.map((d) => {
             'id': d.id,
-            'user_id': userId,
+            'user_id': authId,
             'compound_id': d.compoundId,
             'compound_name': d.compoundName,
             'dose_mg': d.doseMg,
@@ -154,7 +165,7 @@ class ApiService {
         if (checkIns != null && checkIns.isNotEmpty) {
           final checkData = checkIns.map((c) => {
             'id': c.id,
-            'user_id': userId,
+            'user_id': authId,
             'date': c.date.toIso8601String(),
             'energy_level': c.energyLevel,
             'appetite_level': c.appetiteLevel,
@@ -201,9 +212,10 @@ class ApiService {
     final client = _supabase;
     if (client != null) {
       try {
-        final compounds = await client.from('compounds').select().eq('user_id', userId);
-        final doseLogs = await client.from('dose_logs').select().eq('user_id', userId);
-        final checkIns = await client.from('check_ins').select().eq('user_id', userId);
+        final authId = _authUserId(userId);
+        final compounds = await client.from('compounds').select().eq('user_id', authId);
+        final doseLogs = await client.from('dose_logs').select().eq('user_id', authId);
+        final checkIns = await client.from('check_ins').select().eq('user_id', authId);
 
         return {
           'compounds': compounds,
@@ -256,10 +268,11 @@ class ApiService {
     final client = _supabase;
     if (client != null) {
       try {
+        final authId = _authUserId(userId);
         final membership = await client
             .from('circle_members')
             .select()
-            .eq('user_id', userId)
+            .eq('user_id', authId)
             .maybeSingle();
 
         if (membership != null) {
@@ -293,9 +306,9 @@ class ApiService {
           .get(Uri.parse('$baseUrl/api/v1/circles/user/$userId'))
           .timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data['circle'] != null) {
-          final circle = CircleModel.fromJson(data['circle']);
+          final circle = CircleModel.fromJson(data['circle'] as Map<String, dynamic>);
           final assignedCode = data['userInviteCode'] as String?;
           if (assignedCode != null && assignedCode.isNotEmpty) {
             return circle.copyWith(inviteCode: assignedCode);
@@ -338,9 +351,11 @@ class ApiService {
     final client = _supabase;
     if (client != null) {
       try {
+        final authId = _authUserId(userId);
+
         // Ensure profile exists for foreign key constraint
         await client.from('profiles').upsert({
-          'id': userId,
+          'id': authId,
           'updated_at': DateTime.now().toIso8601String(),
         });
 
@@ -359,16 +374,16 @@ class ApiService {
         final maxMembers = circle['max_members'] as int? ?? 5;
 
         // Check if already in circle
-        final alreadyMember = members.any((m) => m['user_id'] == userId);
+        final alreadyMember = members.any((m) => m['user_id'] == authId);
         if (!alreadyMember && members.length >= maxMembers) {
           return CircleActionResult.err('This circle is full (maximum 5 members)');
         }
 
         final letter = displayName.trim().isNotEmpty ? displayName.trim()[0].toUpperCase() : 'U';
         await client.from('circle_members').upsert({
-          'id': 'mem_${userId}_$circleId',
+          'id': 'mem_${authId}_$circleId',
           'circle_id': circleId,
-          'user_id': userId,
+          'user_id': authId,
           'display_name': displayName.trim().isEmpty ? 'You' : displayName.trim(),
           'avatar_letter': letter,
           'checked_in_today': true,
@@ -410,10 +425,10 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        return CircleActionResult.ok(CircleModel.fromJson(data['circle']));
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return CircleActionResult.ok(CircleModel.fromJson(data['circle'] as Map<String, dynamic>));
       } else {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         final err = data['error'] as String? ?? 'Failed to join circle';
         return CircleActionResult.err(err);
       }
@@ -436,8 +451,10 @@ class ApiService {
 
     if (client != null) {
       try {
+        final authId = _authUserId(ownerUserId);
+
         await client.from('profiles').upsert({
-          'id': ownerUserId,
+          'id': authId,
           'updated_at': DateTime.now().toIso8601String(),
         });
 
@@ -446,15 +463,15 @@ class ApiService {
           'invite_code': code,
           'name': name,
           'max_members': 5,
-          'owner_user_id': ownerUserId,
+          'owner_user_id': authId,
         }).select().maybeSingle();
 
         if (circleData != null) {
           final letter = ownerDisplayName.trim().isNotEmpty ? ownerDisplayName.trim()[0].toUpperCase() : 'Y';
           await client.from('circle_members').insert({
-            'id': 'mem_${ownerUserId}_$circleId',
+            'id': 'mem_${authId}_$circleId',
             'circle_id': circleId,
-            'user_id': ownerUserId,
+            'user_id': authId,
             'display_name': ownerDisplayName,
             'avatar_letter': letter,
             'checked_in_today': true,
@@ -498,8 +515,8 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 2));
       if (res.statusCode == 201) {
-        final data = jsonDecode(res.body);
-        return CircleModel.fromJson(data['circle']);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        return CircleModel.fromJson(data['circle'] as Map<String, dynamic>);
       }
     } catch (_) {
       // Offline mode
@@ -517,10 +534,11 @@ class ApiService {
     final client = _supabase;
     if (client != null) {
       try {
+        final authId = _authUserId(userId);
         await client.from('circle_members').update({
           'checked_in_today': checkedInToday,
           'weekly_doses_logged': weeklyDosesLogged,
-        }).eq('circle_id', circleId).eq('user_id', userId);
+        }).eq('circle_id', circleId).eq('user_id', authId);
         return true;
       } catch (e) {
         debugPrint('Supabase updateCircleMemberProgress note: $e');

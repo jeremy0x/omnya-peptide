@@ -57,11 +57,51 @@ export async function buildApp() {
 
   // Sync: Push Client Data to Cloud
   app.post('/api/v1/sync/push', async (req, reply) => {
+    const compoundSchema = z.object({
+      id: z.string(),
+      name: z.string(),
+      nickname: z.string().optional(),
+      category: z.string(),
+      doseMg: z.number(),
+      frequencyDays: z.number().optional(),
+      injectionSite: z.string().optional(),
+      vialMg: z.number().optional(),
+      bacWaterMl: z.number().optional(),
+      dosesLeft: z.number().optional(),
+      costPerDose: z.number().optional(),
+      totalMonthlyCost: z.number().optional(),
+      startDate: z.string().optional(),
+      runoutDate: z.string().optional(),
+    });
+
+    const doseLogSchema = z.object({
+      id: z.string(),
+      compoundId: z.string(),
+      compoundName: z.string(),
+      doseMg: z.number(),
+      injectionSite: z.string(),
+      timestamp: z.string(),
+      synced: z.boolean().optional(),
+    });
+
+    const checkInSchema = z.object({
+      id: z.string(),
+      date: z.string(),
+      energyLevel: z.number(),
+      appetiteLevel: z.number(),
+      weightLbs: z.number().optional(),
+      waistInches: z.number().optional(),
+      cyclePhase: z.enum(['follicular', 'ovulation', 'luteal', 'menstruation']).optional(),
+      isPeriodDay: z.boolean().optional(),
+      localPhotoPath: z.string().optional(),
+      notes: z.string().optional(),
+    });
+
     const schema = z.object({
       userId: z.string(),
-      compounds: z.array(z.any()).optional(),
-      doseLogs: z.array(z.any()).optional(),
-      checkIns: z.array(z.any()).optional(),
+      compounds: z.array(compoundSchema).optional(),
+      doseLogs: z.array(doseLogSchema).optional(),
+      checkIns: z.array(checkInSchema).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -286,7 +326,13 @@ export async function buildApp() {
 
   // RevenueCat Webhook: Pro Subscription handler
   app.post('/api/v1/webhooks/revenuecat', async (req, reply) => {
-    const payload = req.body as any;
+    interface RevenueCatEvent {
+      event?: {
+        app_user_id?: string;
+        type?: string;
+      };
+    }
+    const payload = req.body as RevenueCatEvent | undefined;
     const appUserId = payload?.event?.app_user_id;
     const type = payload?.event?.type;
 

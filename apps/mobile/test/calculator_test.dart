@@ -68,7 +68,7 @@ void main() {
         primaryCompound: 'GHK-Cu',
       );
 
-      expect(read.commentary, contains("week 4 on GHK-Cu"));
+      expect(read.commentary, contains('week 4 on GHK-Cu'));
       expect(read.featureDeltas.containsKey('Face fullness'), true);
       expect(read.featureDeltas.containsKey('Skin evenness'), true);
       expect(read.featureDeltas.containsKey('Waist'), true);

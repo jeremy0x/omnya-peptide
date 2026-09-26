@@ -167,7 +167,7 @@ class LocalStorageService {
           appetiteLevel: 2,
           cyclePhase: CyclePhase.luteal,
           weightLbs: 141.2,
-          notes: "Feeling energized, mild appetite suppression.",
+          notes: 'Feeling energized, mild appetite suppression.',
         ),
       ];
       await saveCheckIns(defaultCheckIns);

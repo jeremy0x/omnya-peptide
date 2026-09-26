@@ -101,7 +101,7 @@ abstract final class OutcomeCorrelator {
       return PhotoReadObservation(
         commentary:
             "Today's Sunday photo is synced with your baseline from Aug 25. "
-            "Facial markers reflect subtle tone clarity gains and consistent contour alignment for week $weekNumber on $primaryCompound.",
+            'Facial markers reflect subtle tone clarity gains and consistent contour alignment for week $weekNumber on $primaryCompound.',
         featureDeltas: const {
           'Skin tone': '+8% tone',
           'Texture': 'even / hydrated',
@@ -113,7 +113,7 @@ abstract final class OutcomeCorrelator {
       commentary:
           "Jawline's a little sharper and your skin looks more even than last week. "
           "Waist reads about the same. That's week $weekNumber on $primaryCompound, "
-          "and it usually shows up right about now.",
+          'and it usually shows up right about now.',
       featureDeltas: const {
         'Face fullness': 'down slightly',
         'Skin evenness': 'up',

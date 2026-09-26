@@ -191,7 +191,7 @@ class _OmnyaToastState extends State<_OmnyaToastWidget>
       return widget.customIcon!;
     }
 
-    final dynamic iconData;
+    final List<List<dynamic>> iconData;
     switch (widget.type) {
       case OmnyaToastType.success:
         iconData = HugeIcons.strokeRoundedCheckmarkCircle02;

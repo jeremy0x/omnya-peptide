@@ -1,4 +1,4 @@
-import { DeviceUser, CompoundRecord, DoseLogRecord, CheckInRecord, CircleGroup } from './types.js';
+import { DeviceUser, CompoundRecord, DoseLogRecord, CheckInRecord, CircleGroup, SyncCompoundInput, SyncDoseLogInput, SyncCheckInInput } from './types.js';
 
 export function generateCleanInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -11,9 +11,9 @@ export function generateCleanInviteCode(): string {
 
 class InMemoryStore {
   public users: Map<string, DeviceUser> = new Map();
-  public compounds: Map<string, CompoundRecord[]> = new Map(); // userId -> compounds
-  public doseLogs: Map<string, DoseLogRecord[]> = new Map(); // userId -> dose logs
-  public checkIns: Map<string, CheckInRecord[]> = new Map(); // userId -> check-ins
+  public compounds: Map<string, (CompoundRecord | SyncCompoundInput)[]> = new Map(); // userId -> compounds
+  public doseLogs: Map<string, (DoseLogRecord | SyncDoseLogInput)[]> = new Map(); // userId -> dose logs
+  public checkIns: Map<string, (CheckInRecord | SyncCheckInInput)[]> = new Map(); // userId -> check-ins
   public circles: Map<string, CircleGroup> = new Map(); // circleId -> CircleGroup
   public inviteCodeMap: Map<string, string> = new Map(); // inviteCode -> circleId
   public userInviteCodes: Map<string, string> = new Map(); // userId -> unique assigned inviteCode

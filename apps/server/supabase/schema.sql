@@ -106,62 +106,99 @@ ALTER TABLE public.circles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.circle_members ENABLE ROW LEVEL SECURITY;
 
 -- ==============================================================================
--- RLS Policies
--- The app uses anonymous device-based auth (no Supabase Auth / auth.uid()).
--- All writes go through the service_role key which bypasses RLS entirely.
--- These policies restrict what anon/authenticated roles can do via the REST API.
--- SELECT with USING(true) is intentionally permissive for reads (not flagged by linter).
+-- RLS Policies & Security
+-- Uses anonymous auth with individual auth.uid() scoping.
+-- Service role retains full bypass capability for server operations.
 -- ==============================================================================
 
--- Profiles: read-only for anon, full access for service_role
-CREATE POLICY "anon_read_profiles"
-  ON public.profiles FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_profiles"
-  ON public.profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Compounds: read-only for anon, full access for service_role
-CREATE POLICY "anon_read_compounds"
-  ON public.compounds FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_compounds"
-  ON public.compounds FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Dose Logs: read-only for anon, full access for service_role
-CREATE POLICY "anon_read_dose_logs"
-  ON public.dose_logs FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_dose_logs"
-  ON public.dose_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Check-Ins: read-only for anon, full access for service_role
-CREATE POLICY "anon_read_check_ins"
-  ON public.check_ins FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_check_ins"
-  ON public.check_ins FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Circles: read-only for anon (needed for join-by-invite lookup)
-CREATE POLICY "anon_read_circles"
-  ON public.circles FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_circles"
-  ON public.circles FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Circle Members: read-only for anon (for circle roster display)
-CREATE POLICY "anon_read_circle_members"
-  ON public.circle_members FOR SELECT TO anon USING (true);
-CREATE POLICY "service_role_full_circle_members"
-  ON public.circle_members FOR ALL TO service_role USING (true) WITH CHECK (true);
-
--- Fix rls_auto_enable function security warnings:
--- 1. Switch to SECURITY INVOKER so it doesn't run with elevated DEFINER privileges
--- 2. Revoke execute completely from PUBLIC, anon, and authenticated
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_proc
-    WHERE proname = 'rls_auto_enable'
-      AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
-  ) THEN
-    ALTER FUNCTION public.rls_auto_enable() SECURITY INVOKER;
-    REVOKE ALL ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
-    REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM anon, authenticated, PUBLIC;
-  END IF;
-END
+-- Helper function to check circle membership without recursive RLS trigger
+CREATE OR REPLACE FUNCTION public.is_circle_member(_circle_id text, _user_id text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM circle_members
+    WHERE circle_id = _circle_id AND user_id = _user_id
+  );
 $$;
+
+REVOKE ALL ON FUNCTION public.is_circle_member(text, text) FROM PUBLIC, anon, authenticated;
+
+-- Profiles: scoped to owner
+CREATE POLICY "profiles_select" ON public.profiles
+  FOR SELECT TO authenticated
+  USING (auth.uid()::text = id);
+
+CREATE POLICY "profiles_upsert" ON public.profiles
+  FOR ALL TO authenticated
+  USING (auth.uid()::text = id)
+  WITH CHECK (auth.uid()::text = id);
+
+-- Compounds: scoped to owner
+CREATE POLICY "compounds_select" ON public.compounds
+  FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "compounds_upsert" ON public.compounds
+  FOR ALL TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- Dose Logs: scoped to owner
+CREATE POLICY "dose_logs_select" ON public.dose_logs
+  FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "dose_logs_upsert" ON public.dose_logs
+  FOR ALL TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- Check-Ins: scoped to owner
+CREATE POLICY "check_ins_select" ON public.check_ins
+  FOR SELECT TO authenticated
+  USING (auth.uid()::text = user_id);
+
+CREATE POLICY "check_ins_upsert" ON public.check_ins
+  FOR ALL TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- Circles: readable by members, manageable by owner
+CREATE POLICY "circles_select" ON public.circles
+  FOR SELECT TO authenticated
+  USING (public.is_circle_member(id, auth.uid()::text));
+
+CREATE POLICY "circles_insert" ON public.circles
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = owner_user_id);
+
+CREATE POLICY "circles_update" ON public.circles
+  FOR UPDATE TO authenticated
+  USING (auth.uid()::text = owner_user_id)
+  WITH CHECK (auth.uid()::text = owner_user_id);
+
+-- Circle Members: readable by fellow members, insert/update own membership
+CREATE POLICY "circle_members_select" ON public.circle_members
+  FOR SELECT TO authenticated
+  USING (public.is_circle_member(circle_id, auth.uid()::text));
+
+CREATE POLICY "circle_members_insert" ON public.circle_members
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = user_id);
+
+CREATE POLICY "circle_members_update" ON public.circle_members
+  FOR UPDATE TO authenticated
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
+
+-- Service role full access policies
+CREATE POLICY "service_role_full_profiles" ON public.profiles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_full_compounds" ON public.compounds FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_full_dose_logs" ON public.dose_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_full_check_ins" ON public.check_ins FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_full_circles" ON public.circles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "service_role_full_circle_members" ON public.circle_members FOR ALL TO service_role USING (true) WITH CHECK (true);

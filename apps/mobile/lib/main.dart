@@ -27,6 +27,12 @@ void main() async {
       url: 'https://aeddscoqzqwnjwokflnz.supabase.co',
       publishableKey: 'sb_publishable_Ngbc6wpe22CGbsGD9-bXBw_rJS0rSUm',
     );
+
+    // Sign in anonymously so the client gets a real auth.uid() for RLS
+    final auth = Supabase.instance.client.auth;
+    if (auth.currentSession == null) {
+      await auth.signInAnonymously();
+    }
   } catch (e) {
     debugPrint('Supabase init note: $e');
   }

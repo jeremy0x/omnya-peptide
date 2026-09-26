@@ -290,7 +290,7 @@ class _MainShellState extends State<MainShell> with SingleTickerProviderStateMix
   Widget _buildNavItem({
     required int index,
     required String label,
-    required dynamic icon,
+    required List<List<dynamic>> icon,
     required bool isDark,
   }) {
     final isSelected = _currentIndex == index;
