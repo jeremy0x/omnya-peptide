@@ -10,7 +10,9 @@ import '../../../core/theme/omnya_typography.dart';
 ///
 /// Features:
 /// - Duolingo-style signature multi-beat haptic sequence on check reveal.
-/// - Concentrated confetti bloom that bursts out from behind the check ("poof").
+/// - Concentrated confetti bloom that bursts out from behind the check ("poof"),
+///   cascades all the way down the screen with 3D paper tumbling flutter,
+///   and falls cleanly out of view.
 /// - Clean time display on top-right (redundant top-left text removed).
 /// - Refined editorial typography with zero all-uppercase text.
 /// - Exact design match to search button: clean off-white circular surface with single stroke check.
@@ -112,10 +114,10 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
       duration: const Duration(milliseconds: 1100),
     );
 
-    // 3. Single-shot confetti poof from behind check (850ms)
+    // 3. Confetti poof and full waterfall descent (3200ms)
     _confettiController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 3200),
     );
     _confettiParticles = _generateConfetti();
 
@@ -168,29 +170,43 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
   }
 
   List<_ConfettiParticle> _generateConfetti() {
-    final rand = math.Random(1337);
+    final rand = math.Random(2026);
     const colors = [
       Color(0xFFE8C868), // champagne gold
       Color(0xFFFCF9F6), // warm cream
       Color(0xFFD482AA), // soft plum rose
-      Color(0xFFD4AF37), // warm bronze
+      Color(0xFFD4AF37), // warm bronze gold
       Color(0xFFE2C9DD), // soft lilac
       Color(0xFFF1E4C3), // light gold
     ];
 
-    return List.generate(28, (i) {
+    return List.generate(44, (i) {
       final angle = rand.nextDouble() * 2 * math.pi;
-      final distance = 65.0 + rand.nextDouble() * 75.0; // radiate 65 to 140px out
-      final isRibbon = rand.nextBool();
-      final width = isRibbon ? (4.0 + rand.nextDouble() * 3.0) : (4.0 + rand.nextDouble() * 2.5);
-      final height = isRibbon ? (8.0 + rand.nextDouble() * 5.0) : width;
+      // Burst spread distance (horizontal & initial arc)
+      final burstDistance = 75.0 + rand.nextDouble() * 90.0;
+      // Fall distance: 780 to 1100 px so every particle cascades completely past the screen bottom
+      final fallSpeed = 780.0 + rand.nextDouble() * 320.0;
+      // Fluttering sway values
+      final swayAmp = 20.0 + rand.nextDouble() * 28.0;
+      final swayFreq = 7.0 + rand.nextDouble() * 8.0;
+      final swayPhase = rand.nextDouble() * 2 * math.pi;
+
+      final isRibbon = rand.nextDouble() > 0.35; // 65% ribbons, 35% confetti dots
+      final width = isRibbon
+          ? (4.5 + rand.nextDouble() * 3.5)
+          : (4.0 + rand.nextDouble() * 3.0);
+      final height = isRibbon ? (8.5 + rand.nextDouble() * 6.5) : width;
       final rotation = rand.nextDouble() * 2 * math.pi;
-      final spin = (rand.nextDouble() - 0.5) * 6.0;
+      final spin = (rand.nextDouble() - 0.5) * 8.0;
       final color = colors[rand.nextInt(colors.length)];
 
       return _ConfettiParticle(
         angle: angle,
-        distance: distance,
+        burstDistance: burstDistance,
+        fallSpeed: fallSpeed,
+        swayAmp: swayAmp,
+        swayFreq: swayFreq,
+        swayPhase: swayPhase,
         width: width,
         height: height,
         isRibbon: isRibbon,
@@ -306,7 +322,7 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
 
                       const Spacer(flex: 3),
 
-                      // Item 1: Central Checkmark Icon with Confetti Poof behind it
+                      // Item 1: Central Checkmark Icon with Confetti Cascade behind it
                       AnimatedBuilder(
                         animation: _entranceController,
                         builder: (context, child) {
@@ -325,7 +341,7 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                           alignment: Alignment.center,
                           clipBehavior: Clip.none,
                           children: [
-                            // Confetti burst: emerges from behind the check, then blooms out
+                            // Confetti burst: emerges from behind check, blooms, then cascades down & falls out of view
                             Positioned.fill(
                               child: AnimatedBuilder(
                                 animation: _confettiController,
@@ -707,7 +723,11 @@ class _RitualDoneButtonState extends State<_RitualDoneButton>
 /// Festive celebration confetti particle
 class _ConfettiParticle {
   final double angle;
-  final double distance;
+  final double burstDistance;
+  final double fallSpeed;
+  final double swayAmp;
+  final double swayFreq;
+  final double swayPhase;
   final double width;
   final double height;
   final bool isRibbon;
@@ -717,7 +737,11 @@ class _ConfettiParticle {
 
   const _ConfettiParticle({
     required this.angle,
-    required this.distance,
+    required this.burstDistance,
+    required this.fallSpeed,
+    required this.swayAmp,
+    required this.swayFreq,
+    required this.swayPhase,
     required this.width,
     required this.height,
     required this.isRibbon,
@@ -727,8 +751,9 @@ class _ConfettiParticle {
   });
 }
 
-/// Custom painter for the confetti bloom that starts together behind the check
-/// and bursts out in a festive "poof" with natural deceleration & rotation.
+/// Custom painter for the confetti bloom that starts together behind the check,
+/// bursts out in a festive "poof", and cascades all the way down the screen
+/// until falling completely out of view.
 class _ConfettiPoofPainter extends CustomPainter {
   final double progress;
   final List<_ConfettiParticle> particles;
@@ -744,20 +769,34 @@ class _ConfettiPoofPainter extends CustomPainter {
 
     final center = Offset(size.width / 2, size.height / 2);
 
-    // Initial gathering behind check, then explosive expansion and deceleration
-    final eased = Curves.easeOutCubic.transform(progress);
-    // Smooth clean fade out in the second half of animation
-    final fadeOut = (1.0 - progress * progress).clamp(0.0, 1.0);
+    // Phase 1: Radial explosive burst (0.0 to 0.20)
+    final burstProgress = (progress / 0.20).clamp(0.0, 1.0);
+    final burstEased = Curves.easeOutCubic.transform(burstProgress);
+
+    // Phase 2: Waterfall gravity drop (0.06 to 1.00)
+    final fallProgress = (progress > 0.06) ? ((progress - 0.06) / 0.94) : 0.0;
+    final fallEased = math.pow(fallProgress, 1.35).toDouble();
+
+    // Stays fully visible across the screen, then gently fades out as it falls below the bottom
+    final fadeOut = (progress < 0.82)
+        ? 1.0
+        : ((1.0 - progress) / 0.18).clamp(0.0, 1.0);
 
     for (final p in particles) {
-      // Behind the 76px check (radius 38), particle travels outward past 38px
-      final r = (32.0 * (1.0 - eased)) + (p.distance * eased);
-      final dx = center.dx + math.cos(p.angle) * r;
-      // Gentle gravity / downward drift as particles float down
-      final dy = center.dy + math.sin(p.angle) * r + (progress * progress * 18.0);
+      // Emerges from behind 38px checkmark circle, expands outward in burst
+      final r = (32.0 * (1.0 - burstEased)) + (p.burstDistance * burstEased);
+      final burstDx = math.cos(p.angle) * r;
+      final burstDy = math.sin(p.angle) * r * 0.85;
+
+      // Downward gravity drift + gentle sinusoidal fluttering sway
+      final dropY = fallEased * p.fallSpeed;
+      final swayX = math.sin(progress * p.swayFreq + p.swayPhase) * (p.swayAmp * fallProgress);
+
+      final dx = center.dx + burstDx + swayX;
+      final dy = center.dy + burstDy + dropY;
 
       final paint = Paint()
-        ..color = p.color.withValues(alpha: fadeOut * 0.92)
+        ..color = p.color.withValues(alpha: fadeOut * 0.95)
         ..style = PaintingStyle.fill;
 
       canvas.save();
@@ -765,6 +804,9 @@ class _ConfettiPoofPainter extends CustomPainter {
       canvas.rotate(p.initialRotation + p.spin * progress);
 
       if (p.isRibbon) {
+        // 3D paper tumbling perspective effect
+        final flipScale = math.cos(progress * p.spin * 5.0).abs().clamp(0.18, 1.0);
+        canvas.scale(flipScale, 1.0);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromCenter(
