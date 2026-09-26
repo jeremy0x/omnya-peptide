@@ -7,6 +7,7 @@ abstract final class OmnyaTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'InstrumentSans',
       scaffoldBackgroundColor: OmnyaColors.sand,
       primaryColor: OmnyaColors.plum,
       colorScheme: const ColorScheme.light(
@@ -39,6 +40,7 @@ abstract final class OmnyaTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'InstrumentSans',
       scaffoldBackgroundColor: OmnyaColors.charcoal,
       primaryColor: OmnyaColors.plumSoft,
       colorScheme: const ColorScheme.dark(
