@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,12 +8,12 @@ import '../../../core/theme/omnya_typography.dart';
 
 /// Clean, editorial full-screen dose logging ritual.
 ///
-/// Principles applied:
-/// - Staggered entrance choreography: elements slowly glide & fade in sequentially.
-/// - Serene background ambience with calm, subtle breathing depth (zero particle clutter).
-/// - Exact design match to the search button: a clean off-white circular surface
-///   with a single stroke checkmark icon (HugeIcons.strokeRoundedTick02).
-/// - Zero extraneous icons: all status dots and repeat icons removed for pure editorial clarity.
+/// Features:
+/// - Duolingo-style signature multi-beat haptic sequence on check reveal.
+/// - Concentrated confetti bloom that bursts out from behind the check ("poof").
+/// - Clean time display on top-right (redundant top-left text removed).
+/// - Refined editorial typography with zero all-uppercase text.
+/// - Exact design match to search button: clean off-white circular surface with single stroke check.
 class ImmersiveDoseLogView extends StatefulWidget {
   final String compoundName;
   final double doseMg;
@@ -78,6 +79,7 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
     with TickerProviderStateMixin {
   late final AnimationController _ambientController;
   late final AnimationController _entranceController;
+  late final AnimationController _confettiController;
 
   late final Animation<double> _checkOpacity;
   late final Animation<double> _checkScale;
@@ -91,6 +93,8 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
 
   late final Animation<double> _buttonOpacity;
   late final Animation<Offset> _buttonSlide;
+
+  late final List<_ConfettiParticle> _confettiParticles;
 
   @override
   void initState() {
@@ -108,13 +112,20 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
       duration: const Duration(milliseconds: 1100),
     );
 
+    // 3. Single-shot confetti poof from behind check (850ms)
+    _confettiController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _confettiParticles = _generateConfetti();
+
     // Stagger 1: Checkmark circle (0.0 -> 0.55)
     final checkCurve = CurvedAnimation(
       parent: _entranceController,
       curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
     );
     _checkOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(checkCurve);
-    _checkScale = Tween<double>(begin: 0.82, end: 1.0).animate(checkCurve);
+    _checkScale = Tween<double>(begin: 0.80, end: 1.0).animate(checkCurve);
     _checkSlide = Tween<Offset>(
       begin: const Offset(0, 18),
       end: Offset.zero,
@@ -156,23 +167,72 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
     _startChoreography();
   }
 
+  List<_ConfettiParticle> _generateConfetti() {
+    final rand = math.Random(1337);
+    const colors = [
+      Color(0xFFE8C868), // champagne gold
+      Color(0xFFFCF9F6), // warm cream
+      Color(0xFFD482AA), // soft plum rose
+      Color(0xFFD4AF37), // warm bronze
+      Color(0xFFE2C9DD), // soft lilac
+      Color(0xFFF1E4C3), // light gold
+    ];
+
+    return List.generate(28, (i) {
+      final angle = rand.nextDouble() * 2 * math.pi;
+      final distance = 65.0 + rand.nextDouble() * 75.0; // radiate 65 to 140px out
+      final isRibbon = rand.nextBool();
+      final width = isRibbon ? (4.0 + rand.nextDouble() * 3.0) : (4.0 + rand.nextDouble() * 2.5);
+      final height = isRibbon ? (8.0 + rand.nextDouble() * 5.0) : width;
+      final rotation = rand.nextDouble() * 2 * math.pi;
+      final spin = (rand.nextDouble() - 0.5) * 6.0;
+      final color = colors[rand.nextInt(colors.length)];
+
+      return _ConfettiParticle(
+        angle: angle,
+        distance: distance,
+        width: width,
+        height: height,
+        isRibbon: isRibbon,
+        initialRotation: rotation,
+        spin: spin,
+        color: color,
+      );
+    });
+  }
+
   void _startChoreography() async {
-    // Initial subtle acknowledgement
+    // Initial gentle tactile engagement
     await HapticFeedback.lightImpact();
     if (!mounted) return;
 
     _entranceController.forward();
 
-    // Medium confirmatory haptic right as the checkmark settles into place (~450ms)
-    await Future.delayed(const Duration(milliseconds: 450));
+    // Exactly as the checkmark settles into center (~380ms), burst confetti & play Duolingo haptics
+    await Future.delayed(const Duration(milliseconds: 380));
+    if (!mounted) return;
+
+    _confettiController.forward(from: 0.0);
+    _playDuolingoCelebrationHaptic();
+  }
+
+  /// Duolingo-style signature multi-beat haptic sequence:
+  /// Crisp prep tick -> energetic celebratory medium pop -> satisfying final click.
+  Future<void> _playDuolingoCelebrationHaptic() async {
+    await HapticFeedback.lightImpact();
+    await Future.delayed(const Duration(milliseconds: 70));
     if (!mounted) return;
     await HapticFeedback.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 90));
+    if (!mounted) return;
+    await HapticFeedback.selectionClick();
   }
 
   @override
   void dispose() {
     _ambientController.dispose();
     _entranceController.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -231,34 +291,22 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                   ),
                   child: Column(
                     children: [
-                      // Top header: Clean, quiet timestamp (no badges or dot icons)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'DOSE RECORDED',
-                            style: GoogleFonts.instrumentSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.45),
-                              letterSpacing: 1.2,
-                            ),
+                      // Top header: Clean time on the top right (redundant top-left text removed)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          timeStr,
+                          style: GoogleFonts.instrumentSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withValues(alpha: 0.45),
                           ),
-                          Text(
-                            timeStr,
-                            style: GoogleFonts.instrumentSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white.withValues(alpha: 0.40),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
 
                       const Spacer(flex: 3),
 
-                      // Item 1: Central Checkmark Icon
-                      // Styled like the search button: Clean circular surface with stroke checkmark
+                      // Item 1: Central Checkmark Icon with Confetti Poof behind it
                       AnimatedBuilder(
                         animation: _entranceController,
                         builder: (context, child) {
@@ -273,37 +321,59 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                             ),
                           );
                         },
-                        child: Container(
-                          width: 76,
-                          height: 76,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFFCF9F6), // matching search button cream surface
-                            border: Border.all(
-                              color: const Color(0x44B5A496), // matching search button border
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.28),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Confetti burst: emerges from behind the check, then blooms out
+                            Positioned.fill(
+                              child: AnimatedBuilder(
+                                animation: _confettiController,
+                                builder: (context, _) {
+                                  return CustomPaint(
+                                    painter: _ConfettiPoofPainter(
+                                      progress: _confettiController.value,
+                                      particles: _confettiParticles,
+                                    ),
+                                  );
+                                },
                               ),
-                            ],
-                          ),
-                          child: const Center(
-                            child: HugeIcon(
-                              icon: HugeIcons.strokeRoundedTick02,
-                              color: OmnyaColors.charcoal,
-                              size: 32,
                             ),
-                          ),
+
+                            // Main circular checkmark surface (matches search button)
+                            Container(
+                              width: 76,
+                              height: 76,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFFFCF9F6), // matching search button cream surface
+                                border: Border.all(
+                                  color: const Color(0x44B5A496), // matching search button border
+                                  width: 1.2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.28),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedTick02,
+                                  color: OmnyaColors.charcoal,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 
                       const SizedBox(height: 28),
 
-                      // Item 2: Headline & Subtitle
+                      // Item 2: Headline & Subtitle (Title Case & Sentence Case)
                       AnimatedBuilder(
                         animation: _entranceController,
                         builder: (context, child) {
@@ -338,7 +408,7 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
 
                       const SizedBox(height: 36),
 
-                      // Item 3: Administration Details Card (Pure editorial layout, zero icons)
+                      // Item 3: Administration Details Card (Pure editorial layout, zero uppercase)
                       AnimatedBuilder(
                         animation: _entranceController,
                         builder: (context, child) {
@@ -433,7 +503,7 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                                 ),
                               ),
 
-                              // Administration & Next Rotation details (No icons, pure typography)
+                              // Administration & Next Rotation details (No all-caps, clean sentence labels)
                               Row(
                                 children: [
                                   Expanded(
@@ -442,14 +512,13 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'ADMINISTERED',
+                                          'Administered',
                                           style: GoogleFonts.instrumentSans(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
                                             color: Colors.white.withValues(
-                                              alpha: 0.45,
+                                              alpha: 0.48,
                                             ),
-                                            letterSpacing: 0.8,
                                           ),
                                         ),
                                         const SizedBox(height: 4),
@@ -478,14 +547,13 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'NEXT ROTATION',
+                                          'Next rotation',
                                           style: GoogleFonts.instrumentSans(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
                                             color: Colors.white.withValues(
-                                              alpha: 0.45,
+                                              alpha: 0.48,
                                             ),
-                                            letterSpacing: 0.8,
                                           ),
                                         ),
                                         const SizedBox(height: 4),
@@ -634,4 +702,89 @@ class _RitualDoneButtonState extends State<_RitualDoneButton>
       ),
     );
   }
+}
+
+/// Festive celebration confetti particle
+class _ConfettiParticle {
+  final double angle;
+  final double distance;
+  final double width;
+  final double height;
+  final bool isRibbon;
+  final double initialRotation;
+  final double spin;
+  final Color color;
+
+  const _ConfettiParticle({
+    required this.angle,
+    required this.distance,
+    required this.width,
+    required this.height,
+    required this.isRibbon,
+    required this.initialRotation,
+    required this.spin,
+    required this.color,
+  });
+}
+
+/// Custom painter for the confetti bloom that starts together behind the check
+/// and bursts out in a festive "poof" with natural deceleration & rotation.
+class _ConfettiPoofPainter extends CustomPainter {
+  final double progress;
+  final List<_ConfettiParticle> particles;
+
+  _ConfettiPoofPainter({
+    required this.progress,
+    required this.particles,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0.0 || progress >= 1.0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+
+    // Initial gathering behind check, then explosive expansion and deceleration
+    final eased = Curves.easeOutCubic.transform(progress);
+    // Smooth clean fade out in the second half of animation
+    final fadeOut = (1.0 - progress * progress).clamp(0.0, 1.0);
+
+    for (final p in particles) {
+      // Behind the 76px check (radius 38), particle travels outward past 38px
+      final r = (32.0 * (1.0 - eased)) + (p.distance * eased);
+      final dx = center.dx + math.cos(p.angle) * r;
+      // Gentle gravity / downward drift as particles float down
+      final dy = center.dy + math.sin(p.angle) * r + (progress * progress * 18.0);
+
+      final paint = Paint()
+        ..color = p.color.withValues(alpha: fadeOut * 0.92)
+        ..style = PaintingStyle.fill;
+
+      canvas.save();
+      canvas.translate(dx, dy);
+      canvas.rotate(p.initialRotation + p.spin * progress);
+
+      if (p.isRibbon) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: p.width,
+              height: p.height,
+            ),
+            const Radius.circular(1.5),
+          ),
+          paint,
+        );
+      } else {
+        canvas.drawCircle(Offset.zero, p.width * 0.5, paint);
+      }
+
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ConfettiPoofPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
