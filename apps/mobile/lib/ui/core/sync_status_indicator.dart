@@ -121,34 +121,33 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            HugeIcon(
-              icon: icon,
-              color: statusColor,
-              size: 18,
-            ),
-            if (repo.isSyncing) ...[
-              const SizedBox(width: 5),
+            if (repo.isSyncing)
               const SizedBox(
-                width: 8,
-                height: 8,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
+                  strokeWidth: 2,
                   color: OmnyaColors.plum,
                 ),
+              )
+            else
+              HugeIcon(
+                icon: icon,
+                color: statusColor,
+                size: 18,
               ),
-            ],
-            if (repo.hasPendingSync) ...[
-              const SizedBox(width: 4),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFD97706),
-                ),
-              ),
-            ],
             if (widget.showLabel) ...[
+              if (repo.hasPendingSync) ...[
+                const SizedBox(width: 4),
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFFD97706),
+                  ),
+                ),
+              ],
               const SizedBox(width: 6),
               Text(
                 label,
