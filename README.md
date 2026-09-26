@@ -99,10 +99,15 @@ flutter pub get
 flutter run
 ```
 
-To build a release Android APK:
+To build a release Android APK (automatically loads `IMGBB_API_KEY` from `apps/mobile/.env`):
 ```bash
 cd apps/mobile
-flutter build apk --release
+./build_apk.sh
+```
+Or manually with `--dart-define`:
+```bash
+cd apps/mobile
+flutter build apk --release --dart-define=IMGBB_API_KEY="your_api_key_here"
 ```
 
 ### Backend Server
