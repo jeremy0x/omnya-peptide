@@ -438,7 +438,6 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                         },
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.07),
                             borderRadius: BorderRadius.circular(24),
@@ -457,134 +456,139 @@ class _ImmersiveDoseLogViewState extends State<ImmersiveDoseLogView>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Compound name & Category pill
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.compoundName,
-                                        style: OmnyaTypography.headline(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Target: ${widget.doseMg.toStringAsFixed(1)} mg',
-                                        style: OmnyaTypography.bodySmall(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.60,
+                              // Top section: Compound name & Category pill
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.compoundName,
+                                          style: OmnyaTypography.headline(
+                                            color: Colors.white,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Target: ${widget.doseMg.toStringAsFixed(1)} mg',
+                                          style: OmnyaTypography.bodySmall(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.60,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.10),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.16),
-                                        width: 0.8,
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.10),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.16),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        widget.category,
+                                        style: GoogleFonts.instrumentSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          letterSpacing: 0.4,
+                                        ),
                                       ),
                                     ),
-                                    child: Text(
-                                      widget.category,
-                                      style: GoogleFonts.instrumentSans(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                        letterSpacing: 0.4,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                child: Divider(
-                                  color: Colors.white.withValues(alpha: 0.10),
-                                  height: 1,
+                                  ],
                                 ),
                               ),
 
-                              // Administration & Next Rotation details (No all-caps, clean sentence labels)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Administered',
-                                          style: GoogleFonts.instrumentSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white.withValues(
-                                              alpha: 0.48,
+                              // Horizontal separator touching the edges of the container
+                              Container(
+                                width: double.infinity,
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.10),
+                              ),
+
+                              // Bottom section: Administered & Next Rotation (centered divider, right-aligned next rotation)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(22, 16, 22, 22),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Administered',
+                                            style: GoogleFonts.instrumentSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.48,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          widget.injectionSite,
-                                          style: OmnyaTypography.bodyMedium(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.95,
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            widget.injectionSite,
+                                            style: OmnyaTypography.bodyMedium(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.95,
+                                              ),
+                                            ).copyWith(
+                                              fontWeight: FontWeight.w500,
                                             ),
-                                          ).copyWith(
-                                            fontWeight: FontWeight.w500,
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Container(
-                                    width: 1,
-                                    height: 32,
-                                    color: Colors.white.withValues(alpha: 0.10),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Next rotation',
-                                          style: GoogleFonts.instrumentSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.white.withValues(
-                                              alpha: 0.48,
+                                    Container(
+                                      width: 1,
+                                      height: 36,
+                                      color: Colors.white.withValues(alpha: 0.10),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'Next rotation',
+                                            textAlign: TextAlign.right,
+                                            style: GoogleFonts.instrumentSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.48,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          widget.nextSite,
-                                          style: OmnyaTypography.bodyMedium(
-                                            color: const Color(0xFFF1E4C3), // gentle warm gold highlight
-                                          ).copyWith(
-                                            fontWeight: FontWeight.w600,
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            widget.nextSite,
+                                            textAlign: TextAlign.right,
+                                            style: OmnyaTypography.bodyMedium(
+                                              color: const Color(0xFFF1E4C3), // gentle warm gold highlight
+                                            ).copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
