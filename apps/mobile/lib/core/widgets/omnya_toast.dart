@@ -25,7 +25,7 @@ class OmnyaToast {
     Widget? customIcon,
     String? actionLabel,
     VoidCallback? onAction,
-    Duration duration = const Duration(milliseconds: 3200),
+    Duration duration = const Duration(milliseconds: 3800),
     bool showProgress = true,
   }) {
     // Dismiss existing toast if active
@@ -194,10 +194,10 @@ class _OmnyaToastState extends State<_OmnyaToastWidget>
     final dynamic iconData;
     switch (widget.type) {
       case OmnyaToastType.success:
-        iconData = HugeIcons.strokeRoundedCheckmarkCircle02;
+        iconData = HugeIcons.strokeRoundedTick02;
         break;
       case OmnyaToastType.warning:
-        iconData = HugeIcons.strokeRoundedAlertCircle;
+        iconData = HugeIcons.strokeRoundedAlert02;
         break;
       case OmnyaToastType.error:
         iconData = HugeIcons.strokeRoundedCancel01;
@@ -207,17 +207,11 @@ class _OmnyaToastState extends State<_OmnyaToastWidget>
         break;
     }
 
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: isDark ? 0.22 : 0.12),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, right: 2),
       child: HugeIcon(
         icon: iconData,
-        size: 15,
+        size: 20,
         color: accentColor,
       ),
     );
