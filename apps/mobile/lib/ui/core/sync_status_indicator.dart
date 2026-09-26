@@ -4,6 +4,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/omnya_colors.dart';
 import '../../core/theme/omnya_typography.dart';
+import '../../core/widgets/omnya_toast.dart';
 import '../../data/repositories/protocol_repository.dart';
 
 class SyncStatusIndicator extends StatefulWidget {
@@ -26,36 +27,32 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
     if (repo.isSyncing) return;
 
     if (repo.hasPendingSync) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Syncing pending local changes to cloud...'),
-          duration: Duration(seconds: 2),
-          backgroundColor: OmnyaColors.plum,
-        ),
+      OmnyaToast.show(
+        context,
+        title: 'Cloud Backup',
+        message: 'Syncing pending local changes to cloud...',
+        type: OmnyaToastType.info,
       );
       final ok = await repo.syncWithCloud(force: true);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(ok ? 'Synced successfully.' : 'Offline. Changes remain safely saved locally.'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: ok ? OmnyaColors.sage : const Color(0xFFD97706),
-          ),
+        OmnyaToast.show(
+          context,
+          title: ok ? 'Backed Up to Cloud' : 'Offline Mode Active',
+          message: ok
+              ? 'All your protocol logs are securely backed up.'
+              : 'Protocol logs are stored safely on your device.',
+          type: ok ? OmnyaToastType.success : OmnyaToastType.warning,
         );
       }
     } else {
       final lastSync = repo.lastSyncTimestamp;
       final timeStr = lastSync != null ? _formatTimestamp(lastSync) : 'just now';
 
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('All data backed up to cloud • Last sync $timeStr'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: OmnyaColors.plum,
-        ),
+      OmnyaToast.show(
+        context,
+        title: 'Cloud Sync Active',
+        message: 'All data backed up • Last sync $timeStr',
+        type: OmnyaToastType.success,
       );
       repo.syncWithCloud();
     }

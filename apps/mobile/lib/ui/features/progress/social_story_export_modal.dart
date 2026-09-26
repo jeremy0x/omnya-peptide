@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
+import '../../../core/widgets/omnya_toast.dart';
 import '../../../core/widgets/tactile_button.dart';
 
 class SocialStoryExportModal extends StatelessWidget {
@@ -154,11 +155,11 @@ class SocialStoryExportModal extends StatelessWidget {
                       ),
                       onPressed: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('9:16 progress card ready for Instagram / TikTok stories!'),
-                            backgroundColor: OmnyaColors.plum,
-                          ),
+                        OmnyaToast.show(
+                          context,
+                          title: 'Story Card Ready',
+                          message: '9:16 progress card ready for Instagram & TikTok stories.',
+                          type: OmnyaToastType.success,
                         );
                       },
                     ),

@@ -120,7 +120,6 @@ class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
                     slideOffset: -22.0,
                     child: OmnyaHeader(
                       title: 'Today',
-                      subtitle: 'Protocol active',
                       showLogo: true,
                       onLogoTap: () => _showAppMenuSheet(context, repo),
                       trailing: Row(

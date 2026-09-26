@@ -8,6 +8,7 @@ import '../../../core/widgets/liquid_glass_container.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/models/circle_data.dart';
 import '../../../data/repositories/protocol_repository.dart';
+import '../../../core/widgets/omnya_toast.dart';
 import '../../core/omnya_header.dart';
 
 class CircleView extends StatefulWidget {
@@ -351,13 +352,16 @@ class _CircleViewState extends State<CircleView> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: OmnyaColors.sage.withValues(alpha: 0.15),
+                        color: isDark ? OmnyaColors.plum.withValues(alpha: 0.25) : OmnyaColors.plum.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark ? OmnyaColors.plumSoft.withValues(alpha: 0.3) : OmnyaColors.plum.withValues(alpha: 0.15),
+                        ),
                       ),
                       child: Text(
                         '$spotsLeft of 5 spots remaining',
                         style: OmnyaTypography.label(
-                          color: OmnyaColors.sage,
+                          color: isDark ? OmnyaColors.plumSoft : OmnyaColors.plum,
                           weight: FontWeight.w600,
                         ),
                       ),
@@ -377,13 +381,11 @@ class _CircleViewState extends State<CircleView> {
                   HapticFeedback.mediumImpact();
                   Clipboard.setData(ClipboardData(text: inviteCode));
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Invite code copied to clipboard'),
-                      duration: Duration(seconds: 2),
-                      backgroundColor: OmnyaColors.plum,
-                    ),
+                  OmnyaToast.show(
+                    context,
+                    title: 'Invite Code Copied',
+                    message: '$inviteCode is ready to share with your friends.',
+                    type: OmnyaToastType.success,
                   );
                 },
               ),
@@ -397,7 +399,7 @@ class _CircleViewState extends State<CircleView> {
   void _showJoinSheet(BuildContext context, ProtocolRepository repo) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final codeController = TextEditingController();
-    final nameController = TextEditingController(text: 'You');
+    final nameController = TextEditingController();
     String? errorMessage;
     bool isLoading = false;
 
@@ -445,7 +447,7 @@ class _CircleViewState extends State<CircleView> {
 
                     // Title & Subtitle
                     Text(
-                      'Join Circle',
+                      'Join an Accountability Circle',
                       style: OmnyaTypography.headline(
                         color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
                       ),
@@ -453,7 +455,7 @@ class _CircleViewState extends State<CircleView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Enter your 5-character cohort invite code to share shot consistency with friends.',
+                      'Enter your group\'s 5-character invite code to join your friends\' protocol circle.',
                       style: OmnyaTypography.bodySmall(
                         color: isDark ? OmnyaColors.sandMuted : OmnyaColors.charcoalMuted,
                       ),
@@ -576,7 +578,7 @@ class _CircleViewState extends State<CircleView> {
 
                     // Submit Button
                     TactileButton(
-                      label: isLoading ? 'Joining Cohort...' : 'Join Circle',
+                      label: isLoading ? 'Joining Cohort...' : 'Join This Circle',
                       variant: TactileButtonVariant.primary,
                       height: 50,
                       borderRadius: 16,
@@ -584,7 +586,7 @@ class _CircleViewState extends State<CircleView> {
                           ? null
                           : () async {
                               final code = codeController.text.trim().toUpperCase();
-                              final name = nameController.text.trim().isEmpty ? 'You' : nameController.text.trim();
+                              final name = nameController.text.trim().isEmpty ? 'Member' : nameController.text.trim();
 
                               if (code.length != 5) {
                                 setSheetState(() {
@@ -610,13 +612,11 @@ class _CircleViewState extends State<CircleView> {
                                 HapticFeedback.lightImpact();
                                 Navigator.pop(ctx);
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Joined ${result.circle?.name ?? "circle"} cohort!'),
-                                      duration: const Duration(seconds: 3),
-                                      backgroundColor: OmnyaColors.plum,
-                                    ),
+                                  OmnyaToast.show(
+                                    context,
+                                    title: 'Joined Circle Cohort',
+                                    message: 'You are now synced with ${result.circle?.name ?? "your group"}.',
+                                    type: OmnyaToastType.success,
                                   );
                                 }
                               } else {

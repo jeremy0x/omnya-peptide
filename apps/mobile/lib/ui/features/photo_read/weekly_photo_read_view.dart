@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
 import '../../../core/widgets/liquid_glass_container.dart';
+import '../../../core/widgets/omnya_toast.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/repositories/protocol_repository.dart';
 import '../../../data/services/imgbb_service.dart';
@@ -200,21 +201,21 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
         _uploadedPhotoUrl = result.displayUrl;
         _isUploading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Weekly photo saved'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
+      OmnyaToast.show(
+        context,
+        title: 'Weekly Photo Saved',
+        message: 'Your progress check-in photo has been uploaded.',
+        type: OmnyaToastType.success,
       );
     } catch (e) {
       debugPrint('Photo capture error: $e');
       if (!mounted) return;
       setState(() => _isUploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Photo saved locally'),
-          backgroundColor: OmnyaColors.plum,
-        ),
+      OmnyaToast.show(
+        context,
+        title: 'Photo Saved Locally',
+        message: 'Saved on device and queued for cloud upload.',
+        type: OmnyaToastType.info,
       );
     }
   }
@@ -249,11 +250,11 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
         _uploadedPhotoUrl = result.displayUrl;
         _isUploading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Weekly photo attached from gallery'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
+      OmnyaToast.show(
+        context,
+        title: 'Weekly Photo Attached',
+        message: 'Photo imported from photo library.',
+        type: OmnyaToastType.success,
       );
     } catch (e) {
       if (!mounted) return;
@@ -721,8 +722,11 @@ class _WeeklyPhotoReadViewState extends State<WeeklyPhotoReadView> {
                             borderRadius: 14,
                             onPressed: () {
                               context.read<ProtocolRepository>().setPro(true);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Pro unlocked')),
+                              OmnyaToast.show(
+                                context,
+                                title: 'Pro Unlocked',
+                                message: 'All analytics and camera ghost overlay are enabled.',
+                                type: OmnyaToastType.success,
                               );
                             },
                           ),

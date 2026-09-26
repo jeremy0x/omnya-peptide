@@ -7,6 +7,7 @@ import '../../core/theme/omnya_typography.dart';
 import '../../core/widgets/liquid_glass_container.dart';
 import '../../core/widgets/tactile_button.dart';
 import '../../core/widgets/omnya_pro_badge.dart';
+import '../../core/widgets/omnya_toast.dart';
 import '../../data/repositories/protocol_repository.dart';
 
 class PaywallView extends StatefulWidget {
@@ -136,16 +137,17 @@ class _PaywallViewState extends State<PaywallView> {
                   height: 56,
                   onPressed: () async {
                     final nav = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
                     await repo.setPro(true);
                     widget.onCompleted?.call();
                     nav.pop();
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Welcome to Omnya Pro!'),
-                        backgroundColor: OmnyaColors.plum,
-                      ),
-                    );
+                    if (context.mounted) {
+                      OmnyaToast.show(
+                        context,
+                        title: 'Welcome to Omnya Pro',
+                        message: 'Unlimited protocols, advanced biomarkers & analytics unlocked.',
+                        type: OmnyaToastType.success,
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 12),

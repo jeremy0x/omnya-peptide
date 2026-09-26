@@ -5,6 +5,7 @@ import 'package:hugeicons/hugeicons.dart';
 import '../../core/theme/omnya_colors.dart';
 import '../../core/theme/omnya_typography.dart';
 import '../../core/widgets/omnya_logo.dart';
+import '../../core/widgets/omnya_toast.dart';
 import '../features/today/today_view.dart';
 import '../features/progress/progress_view.dart';
 import '../features/stack/stack_view.dart';
@@ -775,20 +776,11 @@ class _QuickSearchAndLogSheetState extends State<_QuickSearchAndLogSheet> {
                                                   HapticFeedback.mediumImpact();
                                                   Navigator.pop(dialogCtx);
                                                   Navigator.of(context).pop();
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      backgroundColor: OmnyaColors.plumDeep,
-                                                      behavior: SnackBarBehavior.floating,
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius: BorderRadius.circular(14),
-                                                      ),
-                                                      content: Text(
-                                                        'Logged ${p['name']} scheduled dose',
-                                                        style: OmnyaTypography.bodyMedium(
-                                                          color: Colors.white,
-                                                        ),
-                                                      ),
-                                                    ),
+                                                  OmnyaToast.show(
+                                                    context,
+                                                    title: 'Dose Logged',
+                                                    message: 'Recorded ${p['name']} scheduled dose',
+                                                    type: OmnyaToastType.success,
                                                   );
                                                 },
                                                 child: Text(

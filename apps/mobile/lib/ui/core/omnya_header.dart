@@ -34,15 +34,6 @@ class OmnyaHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (subtitle != null) ...[
-                  Text(
-                    subtitle!,
-                    style: OmnyaTypography.tag(
-                      color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalLight,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                ],
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -65,6 +56,15 @@ class OmnyaHeader extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: OmnyaTypography.tag(
+                      color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalLight,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
