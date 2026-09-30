@@ -256,63 +256,22 @@ class OmnyaWheelField extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
     FocusManager.instance.primaryFocus?.unfocus();
     var index = (((value ?? start) - min) / step).round().clamp(0, _count - 1);
-    final picked = await showModalBottomSheet<({double? value})>(
-      context: context,
-      backgroundColor: OmnyaColors.cream,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(OmnyaRadius.sheet))),
-      builder: (ctx) => SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: Row(
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, (value: null)),
-                    child: Text('Clear', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
-                  ),
-                  Expanded(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: OmnyaTypography.label(weight: FontWeight.w600),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, (value: _at(index))),
-                    child: Text(
-                      'Done',
-                      style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 216,
-              child: CupertinoPicker(
-                itemExtent: 40,
-                scrollController: FixedExtentScrollController(initialItem: index),
-                selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(background: Color(0x144A1E35)),
-                onSelectedItemChanged: (i) {
-                  HapticFeedback.selectionClick();
-                  index = i;
-                },
-                children: [
-                  for (var i = 0; i < _count; i++)
-                    Center(
-                      child: Text(_format(_at(i)), style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal)),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    final result = await showPickerSheet(
+      context,
+      title: label,
+      canClear: value != null,
+      picker: CupertinoPicker(
+        itemExtent: 40,
+        scrollController: FixedExtentScrollController(initialItem: index),
+        onSelectedItemChanged: (i) {
+          HapticFeedback.selectionClick();
+          index = i;
+        },
+        children: [for (var i = 0; i < _count; i++) Center(child: Text(_format(_at(i)), style: _wheelText))],
       ),
     );
-    if (picked != null) onChanged(picked.value);
+    if (result == PickerResult.save) onChanged(_at(index));
+    if (result == PickerResult.clear) onChanged(null);
   }
 
   @override
@@ -355,4 +314,114 @@ class OmnyaWheelField extends StatelessWidget {
       ],
     );
   }
+}
+
+final _wheelText = OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal).copyWith(fontSize: 21);
+
+enum PickerResult { save, clear }
+
+/// iOS-style picker sheet, like the Clock app's: Cancel, title and Save over a wheel.
+/// Null when she cancels or swipes it away.
+Future<PickerResult?> showPickerSheet(
+  BuildContext context, {
+  required String title,
+  required Widget picker,
+  bool canClear = false,
+}) {
+  return showModalBottomSheet<PickerResult>(
+    context: context,
+    backgroundColor: OmnyaColors.cream,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(OmnyaRadius.sheet))),
+    builder: (ctx) => SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Cancel', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: OmnyaTypography.label(weight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(ctx, PickerResult.save);
+                  },
+                  child: Text(
+                    'Save',
+                    style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: OmnyaColors.line),
+          CupertinoTheme(
+            data: CupertinoThemeData(textTheme: CupertinoTextThemeData(dateTimePickerTextStyle: _wheelText)),
+            child: SizedBox(height: 216, child: picker),
+          ),
+          if (canClear)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, PickerResult.clear),
+              child: Text('Clear', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+}
+
+/// The iOS time wheel. Null when she cancels.
+Future<TimeOfDay?> pickTime(BuildContext context, {required String title, required TimeOfDay initial}) async {
+  var picked = DateTime(2000, 1, 1, initial.hour, initial.minute);
+  final result = await showPickerSheet(
+    context,
+    title: title,
+    picker: CupertinoDatePicker(
+      mode: CupertinoDatePickerMode.time,
+      initialDateTime: picked,
+      onDateTimeChanged: (t) {
+        HapticFeedback.selectionClick();
+        picked = t;
+      },
+    ),
+  );
+  return result == PickerResult.save ? TimeOfDay(hour: picked.hour, minute: picked.minute) : null;
+}
+
+/// The iOS date wheel. Null when she cancels.
+Future<DateTime?> pickDate(
+  BuildContext context, {
+  required String title,
+  required DateTime initial,
+  required DateTime first,
+  required DateTime last,
+}) async {
+  var picked = initial.isBefore(first) ? first : (initial.isAfter(last) ? last : initial);
+  final result = await showPickerSheet(
+    context,
+    title: title,
+    picker: CupertinoDatePicker(
+      mode: CupertinoDatePickerMode.date,
+      initialDateTime: picked,
+      minimumDate: first,
+      maximumDate: last,
+      onDateTimeChanged: (d) {
+        HapticFeedback.selectionClick();
+        picked = d;
+      },
+    ),
+  );
+  return result == PickerResult.save ? DateTime(picked.year, picked.month, picked.day) : null;
 }

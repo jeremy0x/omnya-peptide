@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -313,11 +314,38 @@ class _WeightCard extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           if (weighed.length < 2)
-            Text(
-              weighed.isEmpty
-                  ? 'Add your weight in the daily check-in to see your trend here.'
-                  : 'One more weigh-in and your trend line appears.',
-              style: OmnyaTypography.bodyMedium(),
+            // A blurred sample of the chart shows what fills in here. None of it is her data.
+            SizedBox(
+              height: 150,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ExcludeSemantics(
+                    child: ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                      child: Opacity(opacity: 0.85, child: _chart(_sample(now))),
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: OmnyaColors.cream.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(OmnyaRadius.control),
+                        border: Border.all(color: OmnyaColors.line),
+                      ),
+                      child: Text(
+                        weighed.isEmpty
+                            ? 'Add your weight in the daily check-in to see your trend here.'
+                            : 'One more weigh-in and your trend line appears.',
+                        textAlign: TextAlign.center,
+                        style: OmnyaTypography.bodyMedium(color: OmnyaColors.charcoal),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             )
           else
             SizedBox(height: 150, child: _chart(weighed)),
@@ -325,6 +353,11 @@ class _WeightCard extends StatelessWidget {
       ),
     );
   }
+
+  static List<DailyCheckIn> _sample(DateTime now) => [
+    for (final (i, lb) in const [158.4, 157.9, 158.1, 157.2, 156.8, 156.9, 156.1, 155.6].indexed)
+      DailyCheckIn(id: 'sample$i', date: addDays(dayOf(now), (i - 7) * 4), weightLbs: lb),
+  ];
 
   Widget _chart(List<DailyCheckIn> weighed) {
     final start = dayOf(weighed.first.date);

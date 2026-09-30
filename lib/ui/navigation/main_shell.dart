@@ -120,7 +120,13 @@ class _MainShellState extends State<MainShell> with RouteAware {
             ),
           ),
           if (!keyboardOpen && !_covered)
-            Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(top: false, child: _tabBar())),
+            Positioned(
+              left: 0,
+              right: 0,
+              // iOS floats its own tab bar into the home indicator area rather than above it.
+              bottom: (MediaQuery.viewPaddingOf(context).bottom - 22).clamp(8, 40),
+              child: _tabBar(),
+            ),
         ],
       ),
     );
@@ -144,6 +150,9 @@ class _MainShellState extends State<MainShell> with RouteAware {
       children: [
         Expanded(
           child: CNTabBar(
+            // The native bar can come back showing a stale tab after it is rebuilt,
+            // so it is recreated whenever the tab changes.
+            key: ValueKey(_index),
             items: [for (final t in _tabs) _item(t.label, t.asset)],
             currentIndex: _index,
             onTap: _select,

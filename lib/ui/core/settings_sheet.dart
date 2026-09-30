@@ -43,7 +43,7 @@ void showSettingsSheet(BuildContext context) {
             return Column(
               children: [
                 _Switch(
-                  icon: HugeIcons.strokeRoundedNotification03,
+                  icon: HugeIcons.strokeRoundedNotification01,
                   title: 'Dose reminders',
                   subtitle: p.remindersOn ? 'On dose days at ${time.format(sheet)}' : 'Off',
                   value: p.remindersOn,
@@ -55,7 +55,7 @@ void showSettingsSheet(BuildContext context) {
                     title: 'Reminder time',
                     subtitle: time.format(sheet),
                     onTap: () async {
-                      final picked = await showTimePicker(context: sheet, initialTime: time);
+                      final picked = await pickTime(sheet, title: 'Reminder time', initial: time);
                       if (picked != null) {
                         await repo.updateSettings(p.copyWith(reminderMinutes: picked.hour * 60 + picked.minute));
                       }

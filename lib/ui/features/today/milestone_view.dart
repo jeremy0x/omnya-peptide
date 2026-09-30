@@ -19,7 +19,9 @@ class MilestoneView extends StatelessWidget {
     required int dosesLogged,
     required String goal,
   }) {
-    HapticFeedback.mediumImpact();
+    // A heavier double tap than a regular log, so the moment feels different.
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 140), HapticFeedback.mediumImpact);
     final (title, body) = switch (milestone) {
       Milestone.firstDose => ('Day 1.', 'First dose logged.'),
       Milestone.day30 => ('Day 30.', '$dosesLogged doses logged so far.'),

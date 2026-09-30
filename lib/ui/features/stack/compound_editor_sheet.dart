@@ -74,32 +74,34 @@ class _CompoundEditorState extends State<_CompoundEditor> {
 
   Future<void> _pickStart() async {
     final today = dayOf(DateTime.now());
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _start.isAfter(today) ? today : _start,
-      firstDate: DateTime(today.year - 3),
-      lastDate: today,
+    final picked = await pickDate(
+      context,
+      title: 'Started',
+      initial: _start,
+      first: DateTime(today.year - 3),
+      last: today,
     );
     if (picked != null) setState(() => _start = picked);
   }
 
-  Future<DateTime?> _pickDay(DateTime initial, {required DateTime first, required DateTime last}) => showDatePicker(
-    context: context,
-    initialDate: initial.isBefore(first) ? first : (initial.isAfter(last) ? last : initial),
-    firstDate: first,
-    lastDate: last,
-  );
+  Future<DateTime?> _pickDay(String title, DateTime initial, {required DateTime first, required DateTime last}) =>
+      pickDate(context, title: title, initial: initial, first: first, last: last);
 
   Future<void> _pickMixed() async {
     final today = dayOf(DateTime.now());
-    final picked = await _pickDay(_mixedOn ?? today, first: addDays(today, -365), last: today);
+    final picked = await _pickDay('Mixed on', _mixedOn ?? today, first: addDays(today, -365), last: today);
     if (picked != null) setState(() => _mixedOn = picked);
   }
 
   Future<void> _addStep() async {
     final today = dayOf(DateTime.now());
     final last = _titration.isEmpty ? today : _titration.last.from;
-    final day = await _pickDay(addDays(last, 7), first: addDays(today, -365), last: addDays(today, 730));
+    final day = await _pickDay(
+      'New dose starts',
+      addDays(last, 7),
+      first: addDays(today, -365),
+      last: addDays(today, 730),
+    );
     if (day == null || !mounted) return;
     final amount = TextEditingController();
     final dose = await showDialog<double>(

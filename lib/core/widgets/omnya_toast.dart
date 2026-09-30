@@ -83,7 +83,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (widget.type) {
-      OmnyaToastType.success => (HugeIcons.strokeRoundedCheckmarkCircle02, OmnyaColors.plum),
+      OmnyaToastType.success => (HugeIcons.strokeRoundedCheckmarkCircle03, OmnyaColors.plum),
       OmnyaToastType.info => (HugeIcons.strokeRoundedInformationCircle, OmnyaColors.plum),
       OmnyaToastType.warning => (HugeIcons.strokeRoundedAlert02, OmnyaColors.taupeDark),
       OmnyaToastType.error => (HugeIcons.strokeRoundedAlertCircle, OmnyaColors.error),
@@ -91,7 +91,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
     final curve = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
 
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 18, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
       child: Row(
         children: [
           Container(
@@ -114,6 +114,11 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
                 ],
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Dismiss',
+            onPressed: _dismiss,
+            icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, color: OmnyaColors.taupeDark, size: 18),
           ),
         ],
       ),
