@@ -116,20 +116,36 @@ class _MainShellState extends State<MainShell> {
     activeImageAsset: CNImageAsset('assets/icons/${icon}_active.svg', size: 22),
   );
 
-  /// Apple's native Liquid Glass tab bar, drawn with the brand's icons.
-  /// The trailing button logs a dose; it is an action, not a page.
+  /// Apple's native Liquid Glass tab bar, drawn with the brand's icons, and a round
+  /// glass button beside it that logs a dose (an action, not a page).
   Widget _tabBar() {
-    return CNTabBar(
-      items: [for (final t in _tabs) _item(t.label, t.asset), _item('', 'add')],
-      currentIndex: _index,
-      onTap: (i) => i == _tabs.length ? _openQuickLog() : _select(i),
-      tint: OmnyaColors.plum,
-      iconSize: 22,
-      split: true,
-      rightCount: 1,
-      shrinkCentered: false,
-      labelFontFamily: 'InstrumentSans-Medium',
-      labelFontSize: 11,
+    return Row(
+      children: [
+        Expanded(
+          child: CNTabBar(
+            items: [for (final t in _tabs) _item(t.label, t.asset)],
+            currentIndex: _index,
+            onTap: _select,
+            tint: OmnyaColors.plum,
+            iconSize: 22,
+            labelFontFamily: 'InstrumentSans-Medium',
+            labelFontSize: 11,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: Semantics(
+            button: true,
+            label: 'Log a dose',
+            excludeSemantics: true,
+            child: CNButton.icon(
+              imageAsset: const CNImageAsset('assets/icons/add.svg', size: 22, color: OmnyaColors.plum),
+              onPressed: _openQuickLog,
+              config: const CNButtonConfig(style: CNButtonStyle.glass, width: 58, minHeight: 58),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
