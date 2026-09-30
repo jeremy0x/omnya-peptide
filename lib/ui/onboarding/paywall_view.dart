@@ -48,7 +48,7 @@ class _PaywallViewState extends State<PaywallView> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
           children: [
             Text('Free users log.\nPro users learn.', style: OmnyaTypography.displayLarge()),
             const SizedBox(height: 20),

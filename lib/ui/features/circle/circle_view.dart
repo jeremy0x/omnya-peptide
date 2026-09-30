@@ -63,7 +63,7 @@ class _CircleViewState extends State<CircleView> {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: circle == null ? const _NoCircle() : _InCircle(circle: circle, me: repo.myUserId),
           ),
         ],
@@ -78,7 +78,7 @@ class _NoCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OmnyaCard(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      padding: const EdgeInsets.fromLTRB(18, 28, 18, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -165,7 +165,7 @@ class _InCircle extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         OmnyaCard(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

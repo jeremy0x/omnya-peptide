@@ -26,7 +26,7 @@ class WeeklyReportView extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 40),
           children: [
             Align(
               alignment: Alignment.centerLeft,
@@ -73,7 +73,7 @@ class _Section extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: OmnyaCard(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

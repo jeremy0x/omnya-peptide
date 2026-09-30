@@ -129,7 +129,7 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(6),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: TweenAnimationBuilder<double>(
@@ -152,7 +152,7 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

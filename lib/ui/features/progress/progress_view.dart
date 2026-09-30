@@ -43,7 +43,7 @@ class ProgressView extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -52,7 +52,7 @@ class ProgressView extends StatelessWidget {
               _WeightCard(checkIns: repo.checkIns, hasCycle: repo.profile?.hasCycle ?? false),
               const SizedBox(height: 16),
               OmnyaCard(
-                padding: const EdgeInsets.all(22),
+                padding: const EdgeInsets.all(18),
                 child: highlight == null
                     ? Text(
                         'Your first result shows up after two weeks of check-ins.',
@@ -79,7 +79,7 @@ class ProgressView extends StatelessWidget {
                     Navigator.push(context, SlidePageRoute(page: const WeeklyReportView()));
                   },
                   child: Padding(
-                    padding: const EdgeInsets.all(22),
+                    padding: const EdgeInsets.all(18),
                     child: Row(
                       children: [
                         const HugeIcon(icon: HugeIcons.strokeRoundedCalendar03, color: OmnyaColors.plum, size: 20),
@@ -155,7 +155,7 @@ class _OutcomeCard extends StatelessWidget {
       );
     }
     return OmnyaCard(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -302,7 +302,7 @@ class _WeightCard extends StatelessWidget {
       ..sort((a, b) => a.date.compareTo(b.date));
 
     return OmnyaCard(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

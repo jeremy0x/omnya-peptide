@@ -24,7 +24,7 @@ class OmnyaHeader extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.end,

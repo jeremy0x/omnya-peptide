@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -27,18 +28,18 @@ class _OmnyaSheet extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(OmnyaRadius.sheet))),
       child: Container(
-        constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
         child: SafeArea(
           top: false,
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Outside the scroll view, so dragging the handle closes the sheet.
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 20),
+                child: Center(
                   child: Container(
                     width: 36,
                     height: 4,
@@ -48,10 +49,15 @@ class _OmnyaSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                child,
-              ],
-            ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                  child: child,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -207,6 +213,146 @@ class OmnyaInlineError extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A number picked on an iOS-style wheel instead of typed. Tapping the field opens the wheel.
+/// Values run from [min] to [max] in [step]s; [start] is where the wheel opens when empty.
+class OmnyaWheelField extends StatelessWidget {
+  final String label;
+  final double? value;
+  final double min;
+  final double max;
+  final double step;
+  final double start;
+  final String unit;
+  final String hint;
+
+  /// Overrides the default "12 unit" label, e.g. "every 3 days".
+  final String Function(double)? format;
+  final ValueChanged<double?> onChanged;
+
+  const OmnyaWheelField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    this.step = 1,
+    double? start,
+    this.unit = '',
+    this.hint = 'Choose',
+    this.format,
+    required this.onChanged,
+  }) : start = start ?? min;
+
+  int get _count => ((max - min) / step).round() + 1;
+  double _at(int i) => double.parse((min + i * step).toStringAsFixed(2));
+  String _format(double v) => format != null ? format!(v) : _default(v);
+  String _default(double v) =>
+      '${v.toStringAsFixed(step < 1 ? 1 : 0).replaceFirst(RegExp(r'\.0$'), '')}${unit.isEmpty ? '' : ' $unit'}';
+
+  Future<void> _open(BuildContext context) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    var index = (((value ?? start) - min) / step).round().clamp(0, _count - 1);
+    final picked = await showModalBottomSheet<({double? value})>(
+      context: context,
+      backgroundColor: OmnyaColors.cream,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(OmnyaRadius.sheet))),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, (value: null)),
+                    child: Text('Clear', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: OmnyaTypography.label(weight: FontWeight.w600),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, (value: _at(index))),
+                    child: Text(
+                      'Done',
+                      style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 216,
+              child: CupertinoPicker(
+                itemExtent: 40,
+                scrollController: FixedExtentScrollController(initialItem: index),
+                selectionOverlay: const CupertinoPickerDefaultSelectionOverlay(background: Color(0x144A1E35)),
+                onSelectedItemChanged: (i) {
+                  HapticFeedback.selectionClick();
+                  index = i;
+                },
+                children: [
+                  for (var i = 0; i < _count; i++)
+                    Center(
+                      child: Text(_format(_at(i)), style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) onChanged(picked.value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+        const SizedBox(height: 6),
+        Semantics(
+          button: true,
+          label: '$label, ${value == null ? 'not set' : _format(value!)}',
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: () => _open(context),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(
+                color: OmnyaColors.sand,
+                borderRadius: BorderRadius.circular(OmnyaRadius.control),
+                border: Border.all(color: OmnyaColors.line),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value == null ? hint : _format(value!),
+                      style: OmnyaTypography.bodyLarge(
+                        color: value == null ? OmnyaColors.charcoalLight : OmnyaColors.charcoal,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.unfold_more_rounded, size: 18, color: OmnyaColors.taupeDark),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

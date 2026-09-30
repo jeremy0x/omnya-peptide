@@ -83,7 +83,7 @@ class TodayView extends StatelessWidget {
             index: 2,
             child: _Padded(
               OmnyaCard(
-                padding: const EdgeInsets.all(22),
+                padding: const EdgeInsets.all(18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -111,7 +111,7 @@ class _Padded extends StatelessWidget {
   const _Padded(this.child);
 
   @override
-  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child);
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(horizontal: 14), child: child);
 }
 
 class _DoseCard extends StatelessWidget {
@@ -192,7 +192,7 @@ class _PlumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return OmnyaCard(
       color: OmnyaColors.plum,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -280,19 +280,16 @@ class _CheckInCardState extends State<_CheckInCard> {
   bool _editing = false;
   bool _more = false;
   bool _healthEmpty = false;
-  final _weight = TextEditingController();
-  final _waist = TextEditingController();
-  final _sleep = TextEditingController();
-  final _notes = TextEditingController();
+  double? _weight;
+  double? _waist;
+  double? _sleep;
   int? _pain;
+  final _notes = TextEditingController();
   Set<String> _effects = {};
-  final _errors = <String, String>{};
 
   @override
   void dispose() {
-    for (final c in [_weight, _waist, _sleep, _notes]) {
-      c.dispose();
-    }
+    _notes.dispose();
     super.dispose();
   }
 
@@ -304,9 +301,9 @@ class _CheckInCardState extends State<_CheckInCard> {
       _energy = existing.energyLevel;
       _appetite = existing.appetiteLevel;
       _periodStarted = existing.periodStarted;
-      _weight.text = _num(existing.weightLbs);
-      _waist.text = _num(existing.waistIn);
-      _sleep.text = _num(existing.sleepHours);
+      _weight = existing.weightLbs;
+      _waist = existing.waistIn;
+      _sleep = existing.sleepHours;
       _notes.text = existing.notes;
       _pain = existing.pain;
       _effects = {...existing.sideEffects};
@@ -319,42 +316,25 @@ class _CheckInCardState extends State<_CheckInCard> {
     });
   }
 
-  /// Empty is fine; anything typed must be a number in [min, max].
-  double? _read(TextEditingController c, String key, double min, double max, String error) {
-    final text = c.text.trim();
-    if (text.isEmpty) return null;
-    final v = parseNumber(text);
-    if (v == null || v < min || v > max) _errors[key] = error;
-    return v;
-  }
-
   Future<void> _fromHealth() async {
     final w = await NativeService.latestWeight();
     if (!mounted) return;
     // iOS doesn't tell apps whether reading was allowed, so "none found" covers a denial too.
     setState(() {
       _healthEmpty = w == null;
-      if (w != null) _weight.text = w.lbs.toStringAsFixed(1);
+      if (w != null) _weight = double.parse(w.lbs.toStringAsFixed(1));
     });
   }
 
   Future<void> _save() async {
-    _errors.clear();
-    final weight = _read(_weight, 'weight', 50, 800, 'Enter your weight in pounds, like 142.5');
-    final waist = _read(_waist, 'waist', 15, 80, 'Enter inches, like 29.5');
-    final sleep = _read(_sleep, 'sleep', 0, 24, 'Enter hours, like 7.5');
-    if (_errors.isNotEmpty) {
-      setState(() {});
-      return;
-    }
     FocusScope.of(context).unfocus();
     HapticFeedback.mediumImpact();
     await widget.repo.saveCheckIn(
       energy: _energy!,
       appetite: _appetite!,
-      weightLbs: weight,
-      waistIn: waist,
-      sleepHours: sleep,
+      weightLbs: _weight,
+      waistIn: _waist,
+      sleepHours: _sleep,
       pain: _pain,
       sideEffects: _effects.toList(),
       notes: _notes.text,
@@ -371,7 +351,7 @@ class _CheckInCardState extends State<_CheckInCard> {
 
     return _Padded(
       OmnyaCard(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -414,11 +394,16 @@ class _CheckInCardState extends State<_CheckInCard> {
               const SizedBox(height: 14),
               _Scale(label: 'Appetite', value: _appetite, onSelect: (v) => setState(() => _appetite = v)),
               const SizedBox(height: 16),
-              OmnyaField.number(
+              OmnyaWheelField(
                 label: 'Weight (optional)',
-                controller: _weight,
-                suffix: 'lb',
-                error: _errors['weight'],
+                value: _weight,
+                min: 50,
+                max: 800,
+                step: 0.1,
+                // Opens at her last weigh-in so the wheel starts close.
+                start: widget.repo.checkIns.where((c) => c.weightLbs != null).firstOrNull?.weightLbs ?? 150,
+                unit: 'lb',
+                onChanged: (v) => setState(() => _weight = v),
               ),
               if (defaultTargetPlatform == TargetPlatform.iOS)
                 TextButton(
@@ -429,8 +414,7 @@ class _CheckInCardState extends State<_CheckInCard> {
                     style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
                   ),
                 ),
-              if (_healthEmpty)
-                Text('No weight found in Apple Health.', style: OmnyaTypography.bodySmall()),
+              if (_healthEmpty) Text('No weight found in Apple Health.', style: OmnyaTypography.bodySmall()),
               if (!_more)
                 TextButton(
                   onPressed: () => setState(() => _more = true),
@@ -446,37 +430,41 @@ class _CheckInCardState extends State<_CheckInCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: OmnyaField.number(
+                      child: OmnyaWheelField(
                         label: 'Waist',
-                        controller: _waist,
-                        suffix: 'in',
-                        error: _errors['waist'],
+                        value: _waist,
+                        min: 15,
+                        max: 80,
+                        step: 0.5,
+                        start: widget.repo.checkIns.where((c) => c.waistIn != null).firstOrNull?.waistIn ?? 30,
+                        unit: 'in',
+                        onChanged: (v) => setState(() => _waist = v),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: OmnyaField.number(
+                      child: OmnyaWheelField(
                         label: 'Sleep',
-                        controller: _sleep,
-                        suffix: 'hours',
-                        error: _errors['sleep'],
+                        value: _sleep,
+                        min: 0,
+                        max: 24,
+                        step: 0.5,
+                        start: 7,
+                        unit: 'h',
+                        onChanged: (v) => setState(() => _sleep = v),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text('Pain', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (var v = 0; v <= 10; v++)
-                      _Pill(
-                        label: '$v',
-                        selected: _pain == v,
-                        onTap: () => setState(() => _pain = _pain == v ? null : v),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OmnyaWheelField(
+                        label: 'Pain',
+                        value: _pain?.toDouble(),
+                        min: 0,
+                        max: 10,
+                        hint: '0 to 10',
+                        onChanged: (v) => setState(() => _pain = v?.round()),
                       ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 14),

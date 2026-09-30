@@ -30,12 +30,12 @@ class _CompoundEditorState extends State<_CompoundEditor> {
   late final _nickname = TextEditingController(text: _c?.nickname ?? '');
   late final _dose = TextEditingController(text: _c == null || _c.dose == 0 ? '' : _trim(_c.dose));
   late final _halfLife = TextEditingController(text: _c?.halfLifeHours == null ? '' : _trim(_c!.halfLifeHours!));
-  late final _vialDays = TextEditingController(text: _c?.vialDays?.toString() ?? '');
+  late int? _vialDays = _c?.vialDays;
   late String _unit = _c?.unit ?? 'mg';
   late String _route = _c?.route ?? 'Subcutaneous';
   late List<TitrationStep> _titration = [...?_c?.titration];
   late DateTime? _mixedOn = _c?.mixedOn;
-  late final _dosesLeft = TextEditingController(text: _c?.dosesLeft?.toString() ?? '');
+  late int? _dosesLeft = _c?.dosesLeft;
   late final _cost = TextEditingController(text: _c?.costPerDose?.toStringAsFixed(2) ?? '');
   late CompoundCategory _category = _c?.category ?? CompoundCategory.body;
   late int _every = _c?.frequencyDays ?? 0;
@@ -54,7 +54,7 @@ class _CompoundEditorState extends State<_CompoundEditor> {
 
   @override
   void dispose() {
-    for (final c in [_name, _nickname, _dose, _dosesLeft, _cost, _halfLife, _vialDays]) {
+    for (final c in [_name, _nickname, _dose, _cost, _halfLife]) {
       c.dispose();
     }
     super.dispose();
@@ -141,7 +141,7 @@ class _CompoundEditorState extends State<_CompoundEditor> {
       _vialMg = result.vialMg;
       _bacWaterMl = result.bacWaterMl;
       _dose.text = _trim(double.parse((result.targetDoseMg / _toMg).toStringAsFixed(3)));
-      _dosesLeft.text = '${result.totalDosesPerVial}';
+      _dosesLeft = result.totalDosesPerVial.clamp(0, 999);
       if (result.costPerDose > 0) _cost.text = result.costPerDose.toStringAsFixed(2);
     });
   }
@@ -149,23 +149,17 @@ class _CompoundEditorState extends State<_CompoundEditor> {
   Future<void> _save() async {
     final name = _name.text.trim();
     final dose = parseNumber(_dose.text);
-    final leftText = _dosesLeft.text.trim();
-    final left = leftText.isEmpty ? null : int.tryParse(leftText);
     final costText = _cost.text.trim().replaceAll(r'$', '');
     final cost = costText.isEmpty ? null : parseNumber(costText);
     final halfText = _halfLife.text.trim();
     final half = halfText.isEmpty ? null : parseNumber(halfText);
-    final keepText = _vialDays.text.trim();
-    final keep = keepText.isEmpty ? null : int.tryParse(keepText);
 
     setState(() {
       _errors.clear();
       if (name.isEmpty) _errors['name'] = 'Give it a name';
       if (dose == null || dose <= 0 || dose > 10000) _errors['dose'] = 'Enter your dose in $_unit';
       if (_every == 0) _errors['every'] = 'Choose how often you take it';
-      if (leftText.isNotEmpty && (left == null || left < 0 || left > 9999)) _errors['left'] = 'Enter a whole number';
       if (halfText.isNotEmpty && (half == null || half <= 0 || half > 5000)) _errors['half'] = 'Enter hours, like 36';
-      if (keepText.isNotEmpty && (keep == null || keep < 1 || keep > 365)) _errors['keep'] = 'Enter days, 1 to 365';
       if (costText.isNotEmpty && (cost == null || cost < 0 || cost > 99999)) {
         _errors['cost'] = 'Enter an amount, like 4.10';
       }
@@ -188,11 +182,11 @@ class _CompoundEditorState extends State<_CompoundEditor> {
         halfLifeHours: () => half,
         titration: _titration,
         mixedOn: () => _mixedOn,
-        vialDays: () => keep,
+        vialDays: () => _mixedOn == null ? null : _vialDays,
         frequencyDays: _every,
         nextSite: _site,
         startDate: _start,
-        dosesLeft: () => left,
+        dosesLeft: () => _dosesLeft,
         costPerDose: () => cost,
         vialMg: () => _vialMg,
         bacWaterMl: () => _bacWaterMl,
@@ -306,22 +300,17 @@ class _CompoundEditorState extends State<_CompoundEditor> {
           children: [
             _Chip(label: 'Daily', selected: _every == 1, onTap: () => setState(() => _every = 1)),
             _Chip(label: 'Weekly', selected: _every == 7, onTap: () => setState(() => _every = 7)),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _StepButton(icon: Icons.remove, onTap: _every > 1 ? () => setState(() => _every--) : null),
-                SizedBox(
-                  width: 104,
-                  child: Text(
-                    _every == 0 ? 'Other' : everyLabel(_every),
-                    textAlign: TextAlign.center,
-                    style: OmnyaTypography.label(weight: FontWeight.w600),
-                  ),
-                ),
-                _StepButton(icon: Icons.add, onTap: _every < 90 ? () => setState(() => _every++) : null),
-              ],
-            ),
           ],
+        ),
+        const SizedBox(height: 10),
+        OmnyaWheelField(
+          label: 'Or pick a schedule',
+          value: _every == 0 ? null : _every.toDouble(),
+          min: 1,
+          max: 90,
+          start: 3,
+          format: (v) => everyLabel(v.round()),
+          onChanged: (v) => setState(() => _every = v?.round() ?? 0),
         ),
         if (_errors['every'] != null) ...[
           const SizedBox(height: 6),
@@ -410,11 +399,13 @@ class _CompoundEditorState extends State<_CompoundEditor> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: OmnyaField(
+              child: OmnyaWheelField(
                 label: 'Doses left',
-                controller: _dosesLeft,
-                keyboardType: TextInputType.number,
-                error: _errors['left'],
+                value: _dosesLeft?.toDouble(),
+                min: 0,
+                max: 999,
+                start: 10,
+                onChanged: (v) => setState(() => _dosesLeft = v?.round()),
               ),
             ),
             const SizedBox(width: 12),
@@ -451,12 +442,14 @@ class _CompoundEditorState extends State<_CompoundEditor> {
           ),
         ),
         if (_mixedOn != null)
-          OmnyaField(
+          OmnyaWheelField(
             label: 'Keep a mixed vial for',
-            controller: _vialDays,
-            keyboardType: TextInputType.number,
-            suffix: 'days',
-            error: _errors['keep'],
+            value: _vialDays?.toDouble(),
+            min: 1,
+            max: 365,
+            start: 28,
+            unit: 'days',
+            onChanged: (v) => setState(() => _vialDays = v?.round()),
           ),
         if (_unit != 'IU')
           Align(
@@ -513,30 +506,6 @@ class _Chip extends StatelessWidget {
           ),
           child: Text(label, style: OmnyaTypography.label(color: selected ? OmnyaColors.cream : OmnyaColors.charcoal)),
         ),
-      ),
-    );
-  }
-}
-
-class _StepButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  const _StepButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap == null
-          ? null
-          : () {
-              HapticFeedback.selectionClick();
-              onTap!();
-            },
-      icon: Icon(icon, size: 18),
-      color: OmnyaColors.plum,
-      style: IconButton.styleFrom(
-        backgroundColor: OmnyaColors.sand,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(OmnyaRadius.chip)),
       ),
     );
   }

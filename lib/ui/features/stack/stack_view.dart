@@ -39,7 +39,7 @@ class StackView extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

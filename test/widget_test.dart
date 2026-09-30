@@ -110,7 +110,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
 
-    expect(find.textContaining('Logged Reta, 2 mg'), findsOneWidget);
+    expect(find.text('Logged Reta, 2 mg'), findsOneWidget);
     expect(repo.doseLogs.length, 1);
     expect(repo.compounds.single.nextSite, 'Right thigh');
 

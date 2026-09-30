@@ -11,7 +11,7 @@ class OmnyaCard extends StatelessWidget {
   const OmnyaCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(16),
     this.color = OmnyaColors.cream,
     this.onTap,
   });

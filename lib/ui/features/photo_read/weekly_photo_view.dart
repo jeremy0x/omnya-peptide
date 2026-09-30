@@ -58,7 +58,7 @@ class WeeklyPhotoView extends StatelessWidget {
         title: Text('Your week in photos', style: OmnyaTypography.headline()),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 32),
         children: [
           Row(
             children: [
