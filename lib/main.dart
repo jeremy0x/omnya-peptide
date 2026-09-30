@@ -91,7 +91,7 @@ class _OmnyaAppState extends State<OmnyaApp> with WidgetsBindingObserver {
       theme: OmnyaTheme.lightTheme,
       themeMode: ThemeMode.light,
       // Hides the native glass tab bar while a sheet or dialog is up.
-      navigatorObservers: [CNTabBarRouteObserver()],
+      navigatorObservers: [CNTabBarRouteObserver(), shellRoutes],
       builder: (_, child) => AppLock(child: child!),
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),

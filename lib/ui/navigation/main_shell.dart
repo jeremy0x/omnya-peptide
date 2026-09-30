@@ -31,7 +31,26 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+/// Lets the shell know when a full-screen page covers it.
+final shellRoutes = RouteObserver<PageRoute<dynamic>>();
+
+class _MainShellState extends State<MainShell> with RouteAware {
+  // Native views still take touches under a covering page, so the bar is removed while covered.
+  bool _covered = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) shellRoutes.subscribe(this, route);
+  }
+
+  @override
+  void didPushNext() => setState(() => _covered = true);
+
+  @override
+  void didPopNext() => setState(() => _covered = false);
+
   int _index = 0;
 
   static const _tabs = [
@@ -68,6 +87,7 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     _taps?.cancel();
+    shellRoutes.unsubscribe(this);
     super.dispose();
   }
 
@@ -99,7 +119,8 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
           ),
-          if (!keyboardOpen) Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(top: false, child: _tabBar())),
+          if (!keyboardOpen && !_covered)
+            Positioned(left: 0, right: 0, bottom: 0, child: SafeArea(top: false, child: _tabBar())),
         ],
       ),
     );
@@ -138,10 +159,16 @@ class _MainShellState extends State<MainShell> {
             button: true,
             label: 'Log a dose',
             excludeSemantics: true,
-            child: CNButton.icon(
-              imageAsset: const CNImageAsset('assets/icons/add.svg', size: 22, color: OmnyaColors.plum),
-              onPressed: _openQuickLog,
-              config: const CNButtonConfig(style: CNButtonStyle.glass, width: 58, minHeight: 58),
+            // Native glass draws above Flutter, so the button steps aside while a sheet is up.
+            child: ValueListenableBuilder<int>(
+              valueListenable: CNTabBarRouteObserver.anyModalDepth,
+              builder: (_, depth, _) => depth > 0
+                  ? const SizedBox(width: 58, height: 58)
+                  : CNButton.icon(
+                      imageAsset: const CNImageAsset('assets/icons/add.svg', size: 22, color: OmnyaColors.plum),
+                      onPressed: _openQuickLog,
+                      config: const CNButtonConfig(style: CNButtonStyle.glass, width: 58, minHeight: 58),
+                    ),
             ),
           ),
         ),
