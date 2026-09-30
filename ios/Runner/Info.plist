@@ -66,9 +66,24 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- The brand font, registered so native tab bar can use it. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Frameworks/App.framework/flutter_assets/assets/fonts/InstrumentSans-Medium.ttf</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Read your latest weight from Apple Health so you don't have to type it.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Lock Omnya so only you can open your log and photos.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Omnya uses the camera to capture weekly check-in photos for protocol tracking.</string>
+	<string>Take your weekly progress photo. Photos stay on this iPhone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Omnya uses your photo library to select photos for weekly protocol check-ins.</string>
+	<string>Choose a weekly progress photo from your library. Photos stay on this iPhone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save your progress card to Photos.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -1,0 +1,2 @@
+// Shares the app version with the widget extension, which must match the app.
+#include "../Flutter/Generated.xcconfig"
