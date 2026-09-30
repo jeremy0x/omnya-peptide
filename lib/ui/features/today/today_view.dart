@@ -11,7 +11,6 @@ import '../../../core/widgets/omnya_controls.dart';
 import '../../../core/widgets/omnya_pro_badge.dart';
 import '../../../core/widgets/slide_page_route.dart';
 import '../../../core/widgets/tactile_button.dart';
-import '../../../core/widgets/omnya_toast.dart';
 import '../../../data/models/daily_check_in.dart';
 import '../../../data/services/native_service.dart';
 import '../../../data/models/dose_log.dart';
@@ -280,6 +279,7 @@ class _CheckInCardState extends State<_CheckInCard> {
   bool _periodStarted = false;
   bool _editing = false;
   bool _more = false;
+  bool _healthEmpty = false;
   final _weight = TextEditingController();
   final _waist = TextEditingController();
   final _sleep = TextEditingController();
@@ -331,17 +331,11 @@ class _CheckInCardState extends State<_CheckInCard> {
   Future<void> _fromHealth() async {
     final w = await NativeService.latestWeight();
     if (!mounted) return;
-    if (w == null) {
-      OmnyaToast.show(
-        context,
-        // iOS doesn't tell apps whether reading was allowed, so this covers both cases.
-        title: 'No weight found in Apple Health',
-        message: 'Log one in the Health app, or type it here.',
-        type: OmnyaToastType.info,
-      );
-      return;
-    }
-    setState(() => _weight.text = w.lbs.toStringAsFixed(1));
+    // iOS doesn't tell apps whether reading was allowed, so "none found" covers a denial too.
+    setState(() {
+      _healthEmpty = w == null;
+      if (w != null) _weight.text = w.lbs.toStringAsFixed(1);
+    });
   }
 
   Future<void> _save() async {
@@ -435,6 +429,8 @@ class _CheckInCardState extends State<_CheckInCard> {
                     style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
                   ),
                 ),
+              if (_healthEmpty)
+                Text('No weight found in Apple Health.', style: OmnyaTypography.bodySmall()),
               if (!_more)
                 TextButton(
                   onPressed: () => setState(() => _more = true),
