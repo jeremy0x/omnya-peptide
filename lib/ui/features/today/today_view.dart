@@ -334,8 +334,9 @@ class _CheckInCardState extends State<_CheckInCard> {
     if (w == null) {
       OmnyaToast.show(
         context,
-        title: 'No weight in Apple Health',
-        message: 'Allow Omnya to read weight in the Health app, or type it here.',
+        // iOS doesn't tell apps whether reading was allowed, so this covers both cases.
+        title: 'No weight found in Apple Health',
+        message: 'Log one in the Health app, or type it here.',
         type: OmnyaToastType.info,
       );
       return;
