@@ -11,6 +11,7 @@ import '../../core/widgets/slide_page_route.dart';
 import '../../core/widgets/tactile_button.dart';
 import '../../data/models/user_profile.dart';
 import '../../data/repositories/protocol_repository.dart';
+import '../features/today/milestone_view.dart';
 import 'paywall_view.dart';
 
 /// Spec page 5: six questions, one per screen, then her protocol, then the plans.
@@ -104,6 +105,23 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return AnimatedSwitcher(
+      duration: Duration(milliseconds: reduceMotion ? 0 : 500),
+      switchInCurve: Curves.easeOutCubic,
+      child: _step == _steps
+          ? _Summary(
+              key: const ValueKey('summary'),
+              compounds: _compoundNames,
+              goals: _goals,
+              isRetake: _isRetake,
+              onBack: _back,
+              onContinue: _next,
+            )
+          : _questions(reduceMotion),
+    );
+  }
+
+  Widget _questions(bool reduceMotion) {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -174,7 +192,6 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
                   TactileButton(
                     label: switch (_step) {
                       4 when _goalText.text.trim().isEmpty => 'Skip this one',
-                      _steps => _isRetake ? 'Save my answers' : 'Continue',
                       _ => 'Continue',
                     },
                     width: double.infinity,
@@ -295,7 +312,7 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
           _Option(title: label, selected: _photoType == value, onTap: () => setState(() => _photoType = value)),
       ],
     ),
-    _ => _Summary(compounds: _compoundNames, goals: _goals),
+    _ => const SizedBox.shrink(),
   };
 }
 
@@ -393,56 +410,119 @@ class _Option extends StatelessWidget {
   }
 }
 
+/// The end of the quiz, full screen like the Day 1 moment.
 class _Summary extends StatelessWidget {
   final List<String> compounds;
   final Set<String> goals;
-  const _Summary({required this.compounds, required this.goals});
+  final bool isRetake;
+  final VoidCallback onBack;
+  final VoidCallback onContinue;
+  const _Summary({
+    super.key,
+    required this.compounds,
+    required this.goals,
+    required this.isRetake,
+    required this.onBack,
+    required this.onContinue,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ghkForGlow = compounds.contains('GHK-Cu') && (goals.contains('Glow') || goals.contains('All of it'));
-    return ListView(
-      children: [
-        Text('Your protocol is ready.', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 12),
-        Text(
-          ghkForGlow
-              ? "Women running GHK-Cu for glow usually see skin changes around week 4. Let's track yours."
-              : 'Log each dose and check in daily. Your first pattern shows up within two weeks.',
-          style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoalMuted),
-        ),
-        if (compounds.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          Text('In your stack', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
-          const SizedBox(height: 8),
-          for (final c in compounds)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(c, style: OmnyaTypography.headline()),
+    final muted = OmnyaColors.sandMuted.withValues(alpha: 0.75);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: OmnyaColors.plum,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 28, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IconButton(
+                  tooltip: 'Back',
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, color: OmnyaColors.cream, size: 22),
+                  onPressed: onBack,
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(left: 16, top: 48),
+                    children: [
+                      Rise(
+                        delay: 0,
+                        child: Text(
+                          'Your protocol is ready.',
+                          style: OmnyaTypography.displayLarge(
+                            color: OmnyaColors.cream,
+                          ).copyWith(fontSize: 48, height: 1.05),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Rise(
+                        delay: 0.15,
+                        child: Text(
+                          ghkForGlow
+                              ? "Women running GHK-Cu for glow usually see skin changes around week 4. Let's track yours."
+                              : 'Log each dose and check in daily. Your first pattern shows up within two weeks.',
+                          style: OmnyaTypography.bodyLarge(color: OmnyaColors.sandMuted),
+                        ),
+                      ),
+                      if (compounds.isNotEmpty) ...[
+                        const SizedBox(height: 36),
+                        Rise(
+                          delay: 0.3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('In your stack', style: OmnyaTypography.label(color: muted)),
+                              const SizedBox(height: 8),
+                              for (final c in compounds)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Text(c, style: OmnyaTypography.headline(color: OmnyaColors.cream)),
+                                ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Add your dose and schedule for each from Today or Stack.',
+                                style: OmnyaTypography.bodySmall(color: muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 36),
+                      Rise(
+                        delay: 0.45,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Photos stay on your phone. No account needed.',
+                              style: OmnyaTypography.label(color: OmnyaColors.cream, weight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(AppCopy.medicalDisclaimer, style: OmnyaTypography.bodySmall(color: muted)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 12),
+                  child: TactileButton(
+                    label: isRetake ? 'Save my answers' : 'Continue',
+                    variant: TactileButtonVariant.onDark,
+                    width: double.infinity,
+                    onPressed: onContinue,
+                  ),
+                ),
+              ],
             ),
-          const SizedBox(height: 6),
-          Text('Add your dose and schedule for each from Today or Stack.', style: OmnyaTypography.bodySmall()),
-        ],
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: OmnyaColors.sandMuted,
-            borderRadius: BorderRadius.circular(OmnyaRadius.control),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Photos stay on your phone. No account needed.',
-                style: OmnyaTypography.label(weight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Text(AppCopy.medicalDisclaimer, style: OmnyaTypography.bodySmall(color: OmnyaColors.charcoalMuted)),
-            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -52,7 +52,7 @@ class MilestoneView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Spacer(flex: 3),
-              _Rise(
+              Rise(
                 delay: 0,
                 child: Text(
                   title,
@@ -60,13 +60,13 @@ class MilestoneView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              _Rise(
+              Rise(
                 delay: 0.15,
                 child: Text(body, style: OmnyaTypography.headline(color: OmnyaColors.sandMuted)),
               ),
               if (goal != null) ...[
                 const SizedBox(height: 40),
-                _Rise(
+                Rise(
                   delay: 0.3,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,10 +97,10 @@ class MilestoneView extends StatelessWidget {
 }
 
 /// Fades and lifts its child in once, after [delay] (a fraction of the entrance).
-class _Rise extends StatelessWidget {
+class Rise extends StatelessWidget {
   final double delay;
   final Widget child;
-  const _Rise({required this.delay, required this.child});
+  const Rise({super.key, required this.delay, required this.child});
 
   @override
   Widget build(BuildContext context) {
