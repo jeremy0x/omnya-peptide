@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -55,18 +54,11 @@ class ProgressView extends StatelessWidget {
               OmnyaCard(
                 padding: const EdgeInsets.all(18),
                 child: highlight == null
-                    ? Text(
-                        'Your first result shows up after two weeks of check-ins.',
-                        style: OmnyaTypography.headline(color: OmnyaColors.charcoalLight),
+                    ? BlurredPreview(
+                        message: 'Your first result shows up after two weeks of check-ins.',
+                        child: _highlight('-4.2 lb', 'since you started, a steady drop.'),
                       )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(highlight.stat, style: OmnyaTypography.statNumber(color: OmnyaColors.plum)),
-                          const SizedBox(width: 14),
-                          Expanded(child: Text(highlight.caption, style: OmnyaTypography.bodyLarge())),
-                        ],
-                      ),
+                    : _highlight(highlight.stat, highlight.caption),
               ),
               const SizedBox(height: 16),
               _OutcomeCard(repo: repo),
@@ -106,6 +98,14 @@ class ProgressView extends StatelessWidget {
   }
 }
 
+Widget _highlight(String stat, String caption) => Row(
+  children: [
+    Text(stat, style: OmnyaTypography.statNumber(color: OmnyaColors.plum)),
+    const SizedBox(width: 14),
+    Expanded(child: Text(caption, style: OmnyaTypography.bodyLarge())),
+  ],
+);
+
 /// The outcome engine: from day 14, what changed since each compound started.
 class _OutcomeCard extends StatelessWidget {
   final ProtocolRepository repo;
@@ -120,15 +120,24 @@ class _OutcomeCard extends StatelessWidget {
       now: DateTime.now(),
     );
     final Widget body;
-    if (report == null) {
-      body = Text(
-        'Log your first dose. Your results start reading back on day $outcomeStartDay.',
-        style: OmnyaTypography.bodyMedium(),
-      );
-    } else if (!report.isReady) {
-      body = Text(
-        'Day ${report.day}. Your first result is ready in ${report.daysToGo} ${report.daysToGo == 1 ? 'day' : 'days'}.',
-        style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal),
+    if (report == null || !report.isReady) {
+      body = BlurredPreview(
+        message: report == null
+            ? 'Log your first dose. Your results start reading back on day $outcomeStartDay.'
+            : 'Day ${report.day}. Your first result is ready in ${report.daysToGo} ${report.daysToGo == 1 ? 'day' : 'days'}.',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Energy up 1.2 points since you started.',
+              style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal),
+            ),
+            const SizedBox(height: 4),
+            Text('12 of 12 doses on time.', style: OmnyaTypography.bodyMedium()),
+            const SizedBox(height: 14),
+            Text('Appetite down a little.', style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoal)),
+          ],
+        ),
       );
     } else if (report.compounds.isEmpty && report.sideEffects.isEmpty) {
       body = Text(
@@ -314,37 +323,13 @@ class _WeightCard extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           if (weighed.length < 2)
-            // A blurred sample of the chart shows what fills in here. None of it is her data.
             SizedBox(
               height: 150,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ExcludeSemantics(
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                      child: Opacity(opacity: 0.85, child: _chart(_sample(now))),
-                    ),
-                  ),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: OmnyaColors.cream.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(OmnyaRadius.control),
-                        border: Border.all(color: OmnyaColors.line),
-                      ),
-                      child: Text(
-                        weighed.isEmpty
-                            ? 'Add your weight in the daily check-in to see your trend here.'
-                            : 'One more weigh-in and your trend line appears.',
-                        textAlign: TextAlign.center,
-                        style: OmnyaTypography.bodyMedium(color: OmnyaColors.charcoal),
-                      ),
-                    ),
-                  ),
-                ],
+              child: BlurredPreview(
+                message: weighed.isEmpty
+                    ? 'Add your weight in the daily check-in to see your trend here.'
+                    : 'One more weigh-in and your trend line appears.',
+                child: _chart(_sample(now)),
               ),
             )
           else

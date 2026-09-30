@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -424,4 +425,35 @@ Future<DateTime?> pickDate(
     ),
   );
   return result == PickerResult.save ? DateTime(picked.year, picked.month, picked.day) : null;
+}
+
+/// A blurred sample of what fills in here, with a plain line on top saying how to get there.
+/// The sample is never her data, so it is hidden from screen readers.
+class BlurredPreview extends StatelessWidget {
+  final String message;
+  final Widget child;
+  const BlurredPreview({super.key, required this.message, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        ExcludeSemantics(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+            child: Opacity(opacity: 0.45, child: child),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: OmnyaTypography.label(weight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
 }
