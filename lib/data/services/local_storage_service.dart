@@ -1,269 +1,168 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/compound.dart';
-import '../models/dose_log.dart';
-import '../models/daily_check_in.dart';
 import '../models/circle_data.dart';
+import '../models/compound.dart';
+import '../models/daily_check_in.dart';
+import '../models/dose_log.dart';
+import '../models/progress_photo.dart';
 import '../models/user_profile.dart';
-import 'api_service.dart';
-import '../../core/constants/compound_directory.dart';
 
+/// A row deleted on this device that the cloud copy still has to delete.
+typedef PendingDelete = ({String table, String id});
+
+/// The device is the source of truth. Everything works offline and syncs later.
 class LocalStorageService {
-  static const _kProfileKey = 'omnya_user_profile';
-  static const _kCompoundsKey = 'omnya_compounds';
-  static const _kDoseLogsKey = 'omnya_dose_logs';
-  static const _kCheckInsKey = 'omnya_check_ins';
-  static const _kCircleKey = 'omnya_circle';
-  static const _kPendingSyncKey = 'omnya_pending_sync';
-  static const _kLastSyncTimestampKey = 'omnya_last_sync_timestamp';
+  static const _profileKey = 'omnya_user_profile';
+  static const _compoundsKey = 'omnya_compounds';
+  static const _doseLogsKey = 'omnya_dose_logs';
+  static const _checkInsKey = 'omnya_check_ins';
+  static const _photosKey = 'omnya_photos';
+  static const _circleKey = 'omnya_circle_v2';
+  static const _pendingDeletesKey = 'omnya_pending_deletes';
+  static const _pendingSyncKey = 'omnya_pending_sync';
+  static const _lastSyncKey = 'omnya_last_sync_timestamp';
+  static const _milestonesKey = 'omnya_milestones';
 
   final SharedPreferences _prefs;
 
-  LocalStorageService(this._prefs);
+  /// Weekly photos. They never leave the device.
+  final Directory photosDir;
 
-  bool get hasPendingSync => _prefs.getBool(_kPendingSyncKey) ?? false;
+  LocalStorageService(this._prefs, this.photosDir);
 
-  Future<void> setPendingSync(bool value) async {
-    await _prefs.setBool(_kPendingSyncKey, value);
-  }
-
-  DateTime? get lastSyncTimestamp {
-    final raw = _prefs.getString(_kLastSyncTimestampKey);
-    if (raw == null) return null;
-    return DateTime.tryParse(raw);
-  }
-
-  Future<void> setLastSyncTimestamp(DateTime timestamp) async {
-    await _prefs.setString(_kLastSyncTimestampKey, timestamp.toIso8601String());
-  }
-
-  static Future<LocalStorageService> init() async {
+  /// [photosDir] is for tests; the app uses its documents folder.
+  static Future<LocalStorageService> init({Directory? photosDir}) async {
     final prefs = await SharedPreferences.getInstance();
-    final service = LocalStorageService(prefs);
-    await service._ensureSeeded();
-    return service;
+    final photos =
+        photosDir ??
+        await Directory('${(await getApplicationDocumentsDirectory()).path}/photos').create(recursive: true);
+    final storage = LocalStorageService(prefs, photos);
+    await storage._removeLegacyDemoData();
+    return storage;
   }
 
-  Future<void> _ensureSeeded() async {
-    // Seed initial protocol if new install (matching spec page 2 layout)
-    if (_prefs.getString(_kCompoundsKey) == null) {
-      final now = DateTime.now();
-      final defaultCompounds = [
-        Compound(
-          id: 'reta_01',
-          name: 'Retatrutide',
-          nickname: 'Dream bod, here we come.',
-          category: CompoundCategory.body,
-          doseMg: 2.0,
-          frequencyDays: 7,
-          injectionSite: 'Left thigh',
-          vialMg: 10.0,
-          bacWaterMl: 2.0,
-          dosesLeft: 3,
-          costPerDose: 4.10,
-          totalMonthlyCost: 16.40,
-          startDate: now.subtract(const Duration(days: 21)),
-          runoutDate: now.add(const Duration(days: 4)), // Runs out Thursday
-        ),
-        Compound(
-          id: 'ghkcu_01',
-          name: 'GHK-Cu',
-          nickname: 'Face card will be lethal.',
-          category: CompoundCategory.glowAndSkin,
-          doseMg: 1.5,
-          frequencyDays: 1,
-          injectionSite: 'Abdomen',
-          vialMg: 50.0,
-          bacWaterMl: 3.0,
-          dosesLeft: 22,
-          costPerDose: 2.50,
-          totalMonthlyCost: 75.00,
-          startDate: now.subtract(const Duration(days: 28)),
-          runoutDate: now.add(const Duration(days: 22)),
-        ),
-        Compound(
-          id: 'klow_01',
-          name: 'KLOW',
-          nickname: 'Heal, glow, repeat.',
-          category: CompoundCategory.glowAndSkin,
-          doseMg: 1.0,
-          frequencyDays: 1,
-          injectionSite: 'Deltoid',
-          vialMg: 30.0,
-          bacWaterMl: 2.0,
-          dosesLeft: 18,
-          costPerDose: 3.20,
-          totalMonthlyCost: 96.00,
-          startDate: now.subtract(const Duration(days: 12)),
-          runoutDate: now.add(const Duration(days: 18)),
-        ),
-      ];
-
-      await saveCompounds(defaultCompounds);
-
-      // Seed default circle with personal invite code
-      final defaultCircle = CircleModel(
-        id: 'circ_omnya_default',
-        inviteCode: ApiService.generateInviteCode(),
-        name: 'Sunday Glow Cohort',
-        members: [
-          CircleMemberModel(
-            userId: 'usr_mia',
-            displayName: 'Mia',
-            avatarLetter: 'M',
-            checkedInToday: true,
-            weeklyDosesLogged: 7,
-          ),
-          CircleMemberModel(
-            userId: 'usr_you',
-            displayName: 'You',
-            avatarLetter: 'Y',
-            checkedInToday: true,
-            weeklyDosesLogged: 6,
-          ),
-          CircleMemberModel(
-            userId: 'usr_jess',
-            displayName: 'Jess',
-            avatarLetter: 'J',
-            checkedInToday: true,
-            weeklyDosesLogged: 5,
-          ),
-          CircleMemberModel(
-            userId: 'usr_sarah',
-            displayName: 'Sarah',
-            avatarLetter: 'S',
-            checkedInToday: true,
-            weeklyDosesLogged: 6,
-          ),
-          CircleMemberModel(
-            userId: 'usr_ava',
-            displayName: 'Ava',
-            avatarLetter: 'A',
-            checkedInToday: false,
-            weeklyDosesLogged: 4,
-          ),
-        ],
-      );
-      await saveCircle(defaultCircle);
-
-      // Seed default check-in and dose logs
-      final defaultDoseLogs = [
-        DoseLog(
-          id: 'log_01',
-          compoundId: 'reta_01',
-          compoundName: 'Retatrutide',
-          doseMg: 2.0,
-          injectionSite: 'Left thigh',
-          timestamp: now.subtract(const Duration(days: 7)),
-        ),
-      ];
-      await saveDoseLogs(defaultDoseLogs);
-
-      final defaultCheckIns = [
-        DailyCheckIn(
-          id: 'chk_01',
-          date: now,
-          energyLevel: 4,
-          appetiteLevel: 2,
-          cyclePhase: CyclePhase.luteal,
-          weightLbs: 141.2,
-          notes: 'Feeling energized, mild appetite suppression.',
-        ),
-      ];
-      await saveCheckIns(defaultCheckIns);
-      // Notice: Profile is intentionally NOT auto-seeded so new users
-      // naturally experience the 6-step onboarding quiz first.
-    }
-  }
-
-  // Compounds
-  Future<void> saveCompounds(List<Compound> compounds) async {
-    final list = compounds.map((c) => c.toJson()).toList();
-    await _prefs.setString(_kCompoundsKey, jsonEncode(list));
-  }
-
-  List<Compound> getCompounds() {
-    final raw = _prefs.getString(_kCompoundsKey);
+  // One unreadable row is skipped instead of dropping the whole list.
+  List<T> _list<T>(String key, T Function(Map<String, dynamic>) parse) {
+    final raw = _prefs.getString(key);
     if (raw == null) return [];
+    final List<dynamic> items;
     try {
-      final list = jsonDecode(raw) as List;
-      return list.map((item) => Compound.fromJson(item as Map<String, dynamic>)).toList();
-    } catch (_) {
+      items = jsonDecode(raw) as List;
+    } catch (e) {
+      debugPrint('Unreadable $key: $e');
       return [];
     }
-  }
-
-  // Dose Logs
-  Future<void> saveDoseLogs(List<DoseLog> logs) async {
-    final list = logs.map((l) => l.toJson()).toList();
-    await _prefs.setString(_kDoseLogsKey, jsonEncode(list));
-  }
-
-  List<DoseLog> getDoseLogs() {
-    final raw = _prefs.getString(_kDoseLogsKey);
-    if (raw == null) return [];
-    try {
-      final list = jsonDecode(raw) as List;
-      return list.map((item) => DoseLog.fromJson(item as Map<String, dynamic>)).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // Check-ins
-  Future<void> saveCheckIns(List<DailyCheckIn> checkIns) async {
-    final list = checkIns.map((c) => c.toJson()).toList();
-    await _prefs.setString(_kCheckInsKey, jsonEncode(list));
-  }
-
-  List<DailyCheckIn> getCheckIns() {
-    final raw = _prefs.getString(_kCheckInsKey);
-    if (raw == null) return [];
-    try {
-      final list = jsonDecode(raw) as List;
-      return list.map((item) => DailyCheckIn.fromJson(item as Map<String, dynamic>)).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // Circle
-  Future<void> saveCircle(CircleModel circle) async {
-    await _prefs.setString(_kCircleKey, jsonEncode(circle.toJson()));
-  }
-
-  CircleModel? getCircle() {
-    final raw = _prefs.getString(_kCircleKey);
-    if (raw == null) return null;
-    try {
-      final circle = CircleModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-      if (circle.inviteCode == 'OMNYA' || circle.inviteCode.trim().isEmpty) {
-        final upgraded = circle.copyWith(inviteCode: ApiService.generateInviteCode());
-        saveCircle(upgraded);
-        return upgraded;
+    final out = <T>[];
+    for (final item in items) {
+      try {
+        out.add(parse(item as Map<String, dynamic>));
+      } catch (e) {
+        debugPrint('Skipping unreadable $key row: $e');
       }
-      return circle;
-    } catch (_) {
-      return null;
     }
+    return out;
   }
 
-  // Profile
-  Future<void> saveProfile(UserProfile profile) async {
-    await _prefs.setString(_kProfileKey, jsonEncode(profile.toJson()));
-  }
+  Future<void> _put(String key, Iterable<Map<String, dynamic>> rows) =>
+      _prefs.setString(key, jsonEncode(rows.toList()));
+
+  List<Compound> getCompounds() => _list(_compoundsKey, Compound.fromJson);
+  Future<void> saveCompounds(List<Compound> v) => _put(_compoundsKey, v.map((e) => e.toJson()));
+
+  List<DoseLog> getDoseLogs() => _list(_doseLogsKey, DoseLog.fromJson);
+  Future<void> saveDoseLogs(List<DoseLog> v) => _put(_doseLogsKey, v.map((e) => e.toJson()));
+
+  List<DailyCheckIn> getCheckIns() => _list(_checkInsKey, DailyCheckIn.fromJson);
+  Future<void> saveCheckIns(List<DailyCheckIn> v) => _put(_checkInsKey, v.map((e) => e.toJson()));
+
+  List<ProgressPhoto> getPhotos() => _list(_photosKey, ProgressPhoto.fromJson);
+  Future<void> savePhotos(List<ProgressPhoto> v) => _put(_photosKey, v.map((e) => e.toJson()));
 
   UserProfile? getProfile() {
-    final raw = _prefs.getString(_kProfileKey);
+    final raw = _prefs.getString(_profileKey);
     if (raw == null) return null;
     try {
       return UserProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('Unreadable profile: $e');
+      return null;
+    }
+  }
+
+  Future<void> saveProfile(UserProfile p) => _prefs.setString(_profileKey, jsonEncode(p.toJson()));
+
+  /// Last circle seen online, so the tab still shows something offline.
+  Circle? getCircle() {
+    final raw = _prefs.getString(_circleKey);
+    if (raw == null) return null;
+    try {
+      return Circle.fromRow(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
   }
 
-  Future<void> clearProfile() async {
-    await _prefs.remove(_kProfileKey);
+  Future<void> saveCircle(Circle? c) =>
+      c == null ? _prefs.remove(_circleKey) : _prefs.setString(_circleKey, jsonEncode(c.toRow()));
+
+  List<PendingDelete> get pendingDeletes => [
+    for (final e in jsonDecode(_prefs.getString(_pendingDeletesKey) ?? '[]') as List)
+      (table: (e as Map<String, dynamic>)['table'] as String, id: e['id'] as String),
+  ];
+
+  Future<void> _savePendingDeletes(List<PendingDelete> v) => _prefs.setString(
+    _pendingDeletesKey,
+    jsonEncode([
+      for (final d in v) {'table': d.table, 'id': d.id},
+    ]),
+  );
+
+  Future<void> addPendingDelete(String table, String id) =>
+      _savePendingDeletes([...pendingDeletes, (table: table, id: id)]);
+
+  /// Drops only what was sent, so deletes queued during a sync aren't lost.
+  Future<void> removePendingDeletes(List<PendingDelete> sent) =>
+      _savePendingDeletes(pendingDeletes.where((d) => !sent.contains(d)).toList());
+
+  bool get hasPendingSync => _prefs.getBool(_pendingSyncKey) ?? false;
+  Future<void> setPendingSync(bool value) => _prefs.setBool(_pendingSyncKey, value);
+
+  DateTime? get lastSyncTimestamp => DateTime.tryParse(_prefs.getString(_lastSyncKey) ?? '');
+  Future<void> setLastSyncTimestamp(DateTime t) => _prefs.setString(_lastSyncKey, t.toIso8601String());
+
+  Set<String> get celebratedMilestones => (_prefs.getStringList(_milestonesKey) ?? const []).toSet();
+  Future<void> markMilestone(String name) =>
+      _prefs.setStringList(_milestonesKey, {...celebratedMilestones, name}.toList());
+
+  /// Wipes everything the app stored on this device, photos included.
+  Future<void> clearAll() async {
+    await _prefs.clear();
+    if (await photosDir.exists()) {
+      await for (final f in photosDir.list()) {
+        await f.delete(recursive: true);
+      }
+    }
+  }
+
+  // ponytail: removes the demo rows builds before October 2026 seeded on first launch
+  // (fake compounds, circle members and a weigh-in). Delete once testers have updated.
+  Future<void> _removeLegacyDemoData() async {
+    const ids = {'reta_01', 'ghkcu_01', 'klow_01', 'log_01', 'chk_01'};
+    final compounds = getCompounds();
+    if (compounds.any((c) => ids.contains(c.id))) {
+      await saveCompounds(compounds.where((c) => !ids.contains(c.id)).toList());
+    }
+    final logs = getDoseLogs();
+    if (logs.any((l) => ids.contains(l.id))) {
+      await saveDoseLogs(logs.where((l) => !ids.contains(l.id)).toList());
+    }
+    final checkIns = getCheckIns();
+    if (checkIns.any((c) => ids.contains(c.id))) {
+      await saveCheckIns(checkIns.where((c) => !ids.contains(c.id)).toList());
+    }
+    await _prefs.remove('omnya_circle');
   }
 }
