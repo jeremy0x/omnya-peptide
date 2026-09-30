@@ -25,8 +25,8 @@ void main() {
   test('generate', () {
     final icons = {
       'today': HugeIcons.strokeRoundedCalendar03,
-      'progress': HugeIcons.strokeRoundedAnalytics01,
-      'stack': HugeIcons.strokeRoundedLayers01,
+      'progress': HugeIcons.strokeRoundedProgress02,
+      'stack': HugeIcons.strokeRoundedAmpoule,
       'circle': HugeIcons.strokeRoundedUserGroup,
       'add': HugeIcons.strokeRoundedAdd01,
       'share': HugeIcons.strokeRoundedShare01,

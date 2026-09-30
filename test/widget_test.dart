@@ -46,16 +46,16 @@ void main() {
     );
     expect(find.text('Check in for a few days and your first pattern shows up here.'), findsOneWidget);
 
-    await tester.tap(find.text('Progress'));
+    await tester.tap(find.bySemanticsLabel('Progress'));
     await tester.pumpAndSettle();
     expect(find.text('Before and after starts here'), findsOneWidget);
     expect(find.text('Add your weight in the daily check-in to see your trend here.'), findsOneWidget);
 
-    await tester.tap(find.text('Stack'));
+    await tester.tap(find.bySemanticsLabel('Stack'));
     await tester.pumpAndSettle();
     expect(find.text('Nothing in your stack yet'), findsOneWidget);
 
-    await tester.tap(find.text('Circle'));
+    await tester.tap(find.bySemanticsLabel('Circle'));
     await tester.pumpAndSettle();
     expect(find.text('Keep each other going'), findsOneWidget);
     expect(find.textContaining('Mia'), findsNothing);

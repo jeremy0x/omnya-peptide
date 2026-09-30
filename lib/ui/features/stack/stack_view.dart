@@ -48,7 +48,7 @@ class StackView extends StatelessWidget {
                 OmnyaCard(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
                   child: OmnyaEmptyState(
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedLayers01, color: OmnyaColors.taupeDark, size: 28),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedAmpoule, color: OmnyaColors.taupeDark, size: 28),
                     title: 'Nothing in your stack yet',
                     body: 'Add what you take to track doses, sites and when a vial runs out.',
                     action: TactileButton(label: 'Add a compound', onPressed: () => showCompoundEditor(context)),

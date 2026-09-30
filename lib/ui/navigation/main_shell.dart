@@ -123,8 +123,8 @@ class _MainShellState extends State<MainShell> with RouteAware {
             Positioned(
               left: 0,
               right: 0,
-              // iOS floats its own tab bar into the home indicator area rather than above it.
-              bottom: (MediaQuery.viewPaddingOf(context).bottom - 22).clamp(8, 40),
+              // Clear of the home indicator, with a little air.
+              bottom: MediaQuery.viewPaddingOf(context).bottom.clamp(16, 40) + 4,
               child: _tabBar(),
             ),
         ],
@@ -137,51 +137,43 @@ class _MainShellState extends State<MainShell> with RouteAware {
     showOmnyaSheet<void>(context, builder: (_) => _QuickLogSheet(shellContext: context));
   }
 
-  static CNTabBarItem _item(String label, String icon) => CNTabBarItem(
-    label: label,
-    imageAsset: CNImageAsset('assets/icons/$icon.svg', size: 22),
-    activeImageAsset: CNImageAsset('assets/icons/${icon}_active.svg', size: 22),
-  );
-
-  /// Apple's native Liquid Glass tab bar, drawn with the brand's icons, and a round
-  /// glass button beside it that logs a dose (an action, not a page).
+  /// A row of round Liquid Glass buttons, icons only: the four pages, then one that logs a dose.
+  /// Native glass draws above Flutter, so the row steps aside while a sheet is up.
   Widget _tabBar() {
-    return Row(
-      children: [
-        Expanded(
-          child: CNTabBar(
-            // The native bar can come back showing a stale tab after it is rebuilt,
-            // so it is recreated whenever the tab changes.
-            key: ValueKey(_index),
-            items: [for (final t in _tabs) _item(t.label, t.asset)],
-            currentIndex: _index,
-            onTap: _select,
-            tint: OmnyaColors.plum,
-            iconSize: 22,
-            labelFontFamily: 'InstrumentSans-Medium',
-            labelFontSize: 11,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: Semantics(
-            button: true,
-            label: 'Log a dose',
-            excludeSemantics: true,
-            // Native glass draws above Flutter, so the button steps aside while a sheet is up.
-            child: ValueListenableBuilder<int>(
-              valueListenable: CNTabBarRouteObserver.anyModalDepth,
-              builder: (_, depth, _) => depth > 0
-                  ? const SizedBox(width: 58, height: 58)
-                  : CNButton.icon(
-                      imageAsset: const CNImageAsset('assets/icons/add.svg', size: 22, color: OmnyaColors.plum),
-                      onPressed: _openQuickLog,
-                      config: const CNButtonConfig(style: CNButtonStyle.glass, width: 58, minHeight: 58),
-                    ),
+    // Five across with 12pt gaps; shrinks on the narrowest phones.
+    final size = ((MediaQuery.sizeOf(context).width - 32 - 4 * 12) / 5).clamp(44.0, 58.0);
+    Widget circle({required String label, required String icon, bool selected = false, required VoidCallback onTap}) =>
+        Semantics(
+          button: true,
+          selected: selected,
+          label: label,
+          excludeSemantics: true,
+          child: CNButton.icon(
+            // Recreated when its state flips; the native button can keep a stale icon otherwise.
+            key: ValueKey('$icon$selected'),
+            imageAsset: CNImageAsset(
+              'assets/icons/$icon${selected ? '_active' : ''}.svg',
+              size: 26,
+              color: selected ? OmnyaColors.plum : OmnyaColors.taupeDark,
             ),
+            onPressed: onTap,
+            config: CNButtonConfig(style: CNButtonStyle.glass, width: size, minHeight: size),
           ),
-        ),
-      ],
+        );
+
+    return ValueListenableBuilder<int>(
+      valueListenable: CNTabBarRouteObserver.anyModalDepth,
+      builder: (_, depth, _) => depth > 0
+          ? SizedBox(height: size)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: 12,
+              children: [
+                for (final (i, t) in _tabs.indexed)
+                  circle(label: t.label, icon: t.asset, selected: i == _index, onTap: () => _select(i)),
+                circle(label: 'Log a dose', icon: 'add', onTap: _openQuickLog),
+              ],
+            ),
     );
   }
 }
