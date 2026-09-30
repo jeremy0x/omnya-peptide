@@ -263,7 +263,8 @@ Future<T> withLoadingOverlay<T>(BuildContext context, Future<T> Function() task,
   final entry = OverlayEntry(
     builder: (_) => Positioned.fill(
       child: AbsorbPointer(
-        child: ColoredBox(
+        // Material gives the message its text style; the root overlay has none.
+        child: Material(
           color: OmnyaColors.sand.withValues(alpha: 0.88),
           child: Center(child: OmnyaLogoLoader(size: 72, message: message)),
         ),
