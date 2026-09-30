@@ -2,226 +2,146 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/app_copy.dart';
+import '../../core/constants/compound_directory.dart';
 import '../../core/theme/omnya_colors.dart';
 import '../../core/theme/omnya_typography.dart';
-import '../../core/widgets/tactile_button.dart';
+import '../../core/widgets/omnya_logo.dart';
 import '../../core/widgets/slide_page_route.dart';
+import '../../core/widgets/tactile_button.dart';
 import '../../data/models/user_profile.dart';
 import '../../data/repositories/protocol_repository.dart';
 import 'paywall_view.dart';
 
+/// Spec page 5: six questions, one per screen, then her protocol, then the plans.
+/// Nothing is pre-selected. With [onFinished] it is a retake from settings.
 class OnboardingQuizView extends StatefulWidget {
-  final VoidCallback onFinished;
-
-  const OnboardingQuizView({super.key, required this.onFinished});
+  final VoidCallback? onFinished;
+  const OnboardingQuizView({super.key, this.onFinished});
 
   @override
   State<OnboardingQuizView> createState() => _OnboardingQuizViewState();
 }
 
 class _OnboardingQuizViewState extends State<OnboardingQuizView> {
-  int _currentStep = 0; // 0 to 5 (6 steps total)
+  static const _steps = 6;
+  int _step = 0; // 0-5 questions, 6 = protocol summary
+  final _goals = <String>{};
+  final _compounds = <String>{};
+  String? _experience;
+  String? _cycle;
+  String? _photoType;
+  final _goalText = TextEditingController();
 
-  // Answers state
-  final Set<String> _selectedGoals = {'Glow'};
-  final Set<String> _selectedCompounds = {'GHK-Cu'};
-  String _experienceLevel = 'First month';
-  String _cycleStatus = 'natural'; // 'natural', 'birth_control', 'irregular'
-  final TextEditingController _motivationController = TextEditingController(
-    text: "Fitting into the dress from my sister's wedding and actually liking my skin without makeup.",
-  );
-  String _photoType = 'both';
-  bool _sundayPrompt = true;
-
-  bool get _hasCycle => _cycleStatus == 'natural';
+  bool get _isRetake => widget.onFinished != null;
 
   @override
   void dispose() {
-    _motivationController.dispose();
+    _goalText.dispose();
     super.dispose();
   }
 
-  void _nextStep() {
+  bool get _answered => switch (_step) {
+    0 => _goals.isNotEmpty,
+    1 => _compounds.isNotEmpty,
+    2 => _experience != null,
+    3 => _cycle != null,
+    4 => true, // her words are optional
+    5 => _photoType != null,
+    _ => true,
+  };
+
+  void _next() {
     HapticFeedback.lightImpact();
-    if (_currentStep < 5) {
-      setState(() => _currentStep++);
+    FocusScope.of(context).unfocus();
+    if (_step < _steps) {
+      setState(() => _step++);
     } else {
-      _showPersonalizedProtocolScreen();
+      _finish();
     }
   }
 
-  void _prevStep() {
+  void _back() {
     HapticFeedback.lightImpact();
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
+    if (_step > 0) {
+      setState(() => _step--);
+    } else {
+      Navigator.maybePop(context);
     }
   }
 
-  Future<void> _showPersonalizedProtocolScreen() async {
+  List<String> get _compoundNames => _compounds.where((c) => c != 'Not sure yet').toList();
+
+  Future<void> _finish() async {
     final repo = context.read<ProtocolRepository>();
-    // Use Supabase auth.uid() so profile ID matches RLS policies
-    String userId;
-    try {
-      userId = Supabase.instance.client.auth.currentUser!.id;
-    } catch (_) {
-      userId = 'usr_${DateTime.now().millisecondsSinceEpoch}';
-    }
     final profile = UserProfile(
-      id: userId,
-      goals: _selectedGoals.toList(),
-      selectedCompounds: _selectedCompounds.toList(),
-      experienceLevel: _experienceLevel,
-      hasCycle: _hasCycle,
-      day90GoalText: _motivationController.text.trim(),
+      goals: _goals.toList(),
+      selectedCompounds: _compounds.toList(),
+      experienceLevel: _experience,
+      cycleStatus: _cycle,
+      day90GoalText: _goalText.text.trim(),
       photoTrackingType: _photoType,
-      sundayPhotoPromptEnabled: _sundayPrompt,
-      createdAt: DateTime.now(),
+      // A retake keeps her settings.
+      sundayPhotoPromptEnabled: repo.profile?.sundayPhotoPromptEnabled ?? true,
+      remindersOn: repo.profile?.remindersOn ?? true,
+      reminderMinutes: repo.profile?.reminderMinutes ?? 9 * 60,
+      lockWithFaceId: repo.profile?.lockWithFaceId ?? false,
+      createdAt: repo.profile?.createdAt ?? DateTime.now(),
     );
-    await repo.saveProfile(profile);
-    await repo.initializeProtocolFromOnboarding(_selectedCompounds.toList());
+    if (!_isRetake) {
+      // Spec: the plans come right after the protocol screen, before the app.
+      await Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+    }
+    await repo.completeOnboarding(profile, _compoundNames);
+    widget.onFinished?.call();
+  }
 
-    if (!mounted) return;
-
-    final primaryCompound = _selectedCompounds.isNotEmpty && !_selectedCompounds.first.contains('Not sure')
-        ? _selectedCompounds.first
-        : 'this protocol';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: OmnyaColors.cream,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: OmnyaColors.taupe.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your protocol is ready.',
-              style: OmnyaTypography.headline(),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Women running $primaryCompound usually see changes around week 4. Let\'s track yours.',
-              style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoalMuted),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(
-                color: OmnyaColors.sand,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                'Photos processed on-device. No account required to start.',
-                style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
-              ),
-            ),
-            const SizedBox(height: 24),
-            TactileButton(
-              label: 'See personalized options',
-              variant: TactileButtonVariant.primary,
-              width: double.infinity,
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: PaywallView(onCompleted: widget.onFinished),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _skipAll() async {
+    HapticFeedback.lightImpact();
+    await context.read<ProtocolRepository>().completeOnboarding(UserProfile(createdAt: DateTime.now()), const []);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        toolbarHeight: 44,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: HugeIcon(
-            icon: HugeIcons.strokeRoundedArrowLeft01,
-            color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-            size: 22,
-          ),
-          onPressed: () {
-            HapticFeedback.lightImpact();
-            if (_currentStep > 0) {
-              _prevStep();
-            } else {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                widget.onFinished();
-              }
-            }
-          },
-        ),
+        leading: _step > 0 || _isRetake
+            ? IconButton(
+                tooltip: 'Back',
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, color: OmnyaColors.charcoal, size: 22),
+                onPressed: _back,
+              )
+            : const Center(child: OmnyaLogo(size: 28)),
         centerTitle: true,
-        title: Text(
-          '${_currentStep + 1} of 6',
-          style: OmnyaTypography.tag(color: OmnyaColors.taupeDark),
-        ),
+        title: _step < _steps
+            ? Text('${_step + 1} of $_steps', style: OmnyaTypography.tag(color: OmnyaColors.taupeDark))
+            : null,
         actions: [
-          TextButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              widget.onFinished();
-            },
-            child: Text(
-              'Skip',
-              style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
+          if (!_isRetake && _step < _steps)
+            TextButton(
+              onPressed: _skipAll,
+              child: Text('Skip', style: OmnyaTypography.label(color: OmnyaColors.taupeDark)),
             ),
-          ),
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(8),
+          preferredSize: const Size.fromHeight(6),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 350),
+                duration: Duration(milliseconds: reduceMotion ? 0 : 450),
                 curve: Curves.easeOutCubic,
-                tween: Tween<double>(
-                  begin: 0.0,
-                  end: (_currentStep + 1) / 6.0,
+                tween: Tween(end: (_step + 1).clamp(1, _steps) / _steps),
+                builder: (_, value, _) => LinearProgressIndicator(
+                  value: value,
+                  minHeight: 3,
+                  backgroundColor: OmnyaColors.sandMuted,
+                  color: OmnyaColors.plum,
                 ),
-                builder: (context, value, _) {
-                  return LinearProgressIndicator(
-                    value: value,
-                    minHeight: 3,
-                    backgroundColor: isDark ? const Color(0xFF282523) : OmnyaColors.sandMuted,
-                    valueColor: const AlwaysStoppedAnimation<Color>(OmnyaColors.plum),
-                  );
-                },
               ),
             ),
           ),
@@ -234,25 +154,32 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Step Content Switcher
                   Expanded(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: _buildCurrentStep(context),
+                      duration: Duration(milliseconds: reduceMotion ? 0 : 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween(begin: const Offset(0.04, 0), end: Offset.zero).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: KeyedSubtree(key: ValueKey(_step), child: _buildStep()),
                     ),
                   ),
-
-                  // Bottom Action
                   TactileButton(
-                    label: _currentStep == 5 ? 'Finish' : 'Continue',
-                    variant: TactileButtonVariant.primary,
+                    label: switch (_step) {
+                      4 when _goalText.text.trim().isEmpty => 'Skip this one',
+                      _steps => _isRetake ? 'Save my answers' : 'Continue',
+                      _ => 'Continue',
+                    },
                     width: double.infinity,
-                    height: 54,
-                    onPressed: _nextStep,
+                    onPressed: _answered ? _next : null,
                   ),
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -262,345 +189,260 @@ class _OnboardingQuizViewState extends State<OnboardingQuizView> {
     );
   }
 
-  Widget _buildCurrentStep(BuildContext context) {
-    switch (_currentStep) {
-      case 0:
-        return _buildStep1Goals();
-      case 1:
-        return _buildStep2Compounds();
-      case 2:
-        return _buildStep3Experience();
-      case 3:
-        return _buildStep4Cycle();
-      case 4:
-        return _buildStep5Motivation();
-      case 5:
-        return _buildStep6Photos();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  // 1 of 6: What are you here for?
-  Widget _buildStep1Goals() {
-    const goals = ['Snatched', 'Glow', 'Heal and recover', 'Energy', 'All of it'];
-
-    return Column(
-      key: const ValueKey('step_1'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildStep() => switch (_step) {
+    0 => _Question(
+      title: 'What are you here for?',
+      hint: 'Pick as many as you like.',
       children: [
-        Text('What are you here for?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('Select one or more that matter most to you.', style: OmnyaTypography.bodyMedium()),
-        const SizedBox(height: 24),
-        ...goals.map((g) {
-          final isSelected = _selectedGoals.contains(g);
-          return _buildSelectableOption(
+        for (final g in const ['Snatched', 'Glow', 'Heal and recover', 'Energy', 'All of it'])
+          _Option(
             title: g,
-            isSelected: isSelected,
-            onTap: () {
-              setState(() {
-                if (g == 'All of it') {
-                  _selectedGoals.clear();
-                  _selectedGoals.add(g);
-                } else {
-                  _selectedGoals.remove('All of it');
-                  if (isSelected) {
-                    _selectedGoals.remove(g);
-                  } else {
-                    _selectedGoals.add(g);
-                  }
-                }
-              });
-            },
-          );
-        }),
+            selected: _goals.contains(g),
+            onTap: () => setState(() {
+              if (g == 'All of it') {
+                _goals
+                  ..clear()
+                  ..add(g);
+              } else {
+                _goals.remove('All of it');
+                _goals.contains(g) ? _goals.remove(g) : _goals.add(g);
+              }
+            }),
+          ),
       ],
-    );
-  }
-
-  // 2 of 6: What are you running, or thinking about?
-  Widget _buildStep2Compounds() {
-    final options = [
-      {'name': 'Retatrutide', 'sub': 'dream bod, here we come'},
-      {'name': 'GHK-Cu', 'sub': 'face card will be lethal'},
-      {'name': 'KLOW', 'sub': 'heal, glow, repeat'},
-      {'name': 'Not sure yet', 'sub': 'explore library'},
-    ];
-
-    return Column(
-      key: const ValueKey('step_2'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+    ),
+    1 => _Question(
+      title: 'What are you running, or thinking about?',
+      hint: "You'll add your own dose and schedule after.",
       children: [
-        Text('What are you running,\nor thinking about?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('Adds compounds with defaults you confirm later.', style: OmnyaTypography.bodyMedium()),
-        const SizedBox(height: 24),
-        ...options.map((opt) {
-          final name = opt['name']!;
-          final isSelected = _selectedCompounds.contains(name);
-          return _buildSelectableOption(
+        for (final name in const ['Retatrutide', 'GHK-Cu', 'KLOW'])
+          _Option(
             title: name,
-            subtitle: opt['sub'],
-            isSelected: isSelected,
-            onTap: () {
-              setState(() {
-                if (isSelected) {
-                  _selectedCompounds.remove(name);
-                } else {
-                  _selectedCompounds.add(name);
-                }
-              });
-            },
-          );
-        }),
-      ],
-    );
-  }
-
-  // 3 of 6: How far in are you?
-  Widget _buildStep3Experience() {
-    const levels = ["Haven't started", 'First month', 'A few months', 'Over a year'];
-
-    return Column(
-      key: const ValueKey('step_3'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('How far in are you?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('Sets the tone and baseline of your first insights.', style: OmnyaTypography.bodyMedium()),
-        const SizedBox(height: 24),
-        ...levels.map((lvl) {
-          return _buildSelectableOption(
-            title: lvl,
-            isSelected: _experienceLevel == lvl,
-            onTap: () => setState(() => _experienceLevel = lvl),
-          );
-        }),
-      ],
-    );
-  }
-
-  // 4 of 6: Do you get a period?
-  Widget _buildStep4Cycle() {
-    return Column(
-      key: const ValueKey('step_4'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Do you get a period?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('Turns on cycle-aware weight filtering and water weight alerts.', style: OmnyaTypography.bodyMedium()),
-        const SizedBox(height: 24),
-        _buildSelectableOption(
-          title: 'Yes, natural cycle',
-          isSelected: _cycleStatus == 'natural',
-          onTap: () => setState(() => _cycleStatus = 'natural'),
-        ),
-        _buildSelectableOption(
-          title: 'On hormonal birth control',
-          isSelected: _cycleStatus == 'birth_control',
-          onTap: () => setState(() => _cycleStatus = 'birth_control'),
-        ),
-        _buildSelectableOption(
-          title: 'Irregular or not tracking',
-          isSelected: _cycleStatus == 'irregular',
-          onTap: () => setState(() => _cycleStatus = 'irregular'),
-        ),
-      ],
-    );
-  }
-
-  // 5 of 6: What would make this worth it in 90 days?
-  Widget _buildStep5Motivation() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      key: const ValueKey('step_5'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('What would make this worth it in 90 days?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('One line, your words. Shown back to you at Day 30 and Day 90.', style: OmnyaTypography.bodyMedium()),
-        const SizedBox(height: 24),
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1B19) : OmnyaColors.cream,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? const Color(0xFF3E3935) : OmnyaColors.taupe.withValues(alpha: 0.4),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            subtitle: CompoundDirectory.find(name)?.nickname,
+            selected: _compounds.contains(name),
+            onTap: () => setState(() {
+              _compounds.remove('Not sure yet');
+              _compounds.contains(name) ? _compounds.remove(name) : _compounds.add(name);
+            }),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: TextField(
-            controller: _motivationController,
-            maxLines: 4,
-            style: OmnyaTypography.bodyLarge(
-              color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
+        _Option(
+          title: 'Not sure yet',
+          subtitle: 'Add compounds any time from Stack',
+          selected: _compounds.contains('Not sure yet'),
+          onTap: () => setState(() {
+            _compounds
+              ..clear()
+              ..add('Not sure yet');
+          }),
+        ),
+      ],
+    ),
+    2 => _Question(
+      title: 'How far in are you?',
+      hint: 'This sets the tone of your first insights.',
+      children: [
+        for (final l in const ["Haven't started", 'First month', 'A few months', 'Over a year'])
+          _Option(title: l, selected: _experience == l, onTap: () => setState(() => _experience = l)),
+      ],
+    ),
+    3 => _Question(
+      title: 'Do you get a period?',
+      hint: 'Turns on cycle tracking, so water weight gets flagged instead of worrying you.',
+      children: [
+        for (final (value, label) in const [
+          ('yes', 'Yes'),
+          ('no', 'No'),
+          ('irregular', 'Irregular'),
+          ('birth_control', 'On birth control'),
+        ])
+          _Option(title: label, selected: _cycle == value, onTap: () => setState(() => _cycle = value)),
+      ],
+    ),
+    4 => _Question(
+      title: 'What would make this worth it in 90 days?',
+      hint: "One line, in your words. We'll show it back to you on day 30 and day 90.",
+      children: [
+        TextField(
+          controller: _goalText,
+          maxLines: 3,
+          maxLength: 200,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+          style: OmnyaTypography.bodyLarge(),
+          decoration: InputDecoration(
+            hintText: 'Type your answer',
+            hintStyle: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoalLight),
+            filled: true,
+            fillColor: OmnyaColors.cream,
+            contentPadding: const EdgeInsets.all(16),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(OmnyaRadius.control),
+              borderSide: const BorderSide(color: OmnyaColors.taupe),
             ),
-            decoration: InputDecoration(
-              hintText: 'e.g., Feeling confident in my own skin, effortless morning routine...',
-              hintStyle: OmnyaTypography.bodyLarge(
-                color: OmnyaColors.taupeDark,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(OmnyaRadius.control),
+              borderSide: const BorderSide(color: OmnyaColors.plum, width: 1.5),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  // 6 of 6: Photos preference
-  Widget _buildStep6Photos() {
-    return Column(
-      key: const ValueKey('step_6'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+    ),
+    5 => _Question(
+      title: 'Photos: face, body, or both?',
+      hint: 'One photo a week, compared with the last. They stay on your phone.',
       children: [
-        Text('Photos: face, body, or both?', style: OmnyaTypography.displayMedium()),
-        const SizedBox(height: 6),
-        Text('Sets up your weekly photo read and camera alignment guide.', style: OmnyaTypography.bodyMedium()),
+        for (final (value, label) in const [('face', 'Face'), ('body', 'Body'), ('both', 'Both')])
+          _Option(title: label, selected: _photoType == value, onTap: () => setState(() => _photoType = value)),
+      ],
+    ),
+    _ => _Summary(compounds: _compoundNames, goals: _goals),
+  };
+}
+
+class _Question extends StatelessWidget {
+  final String title;
+  final String hint;
+  final List<Widget> children;
+  const _Question({required this.title, required this.hint, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        Text(title, style: OmnyaTypography.displayMedium()),
+        const SizedBox(height: 8),
+        Text(hint, style: OmnyaTypography.bodyMedium()),
         const SizedBox(height: 24),
-        _buildSelectableOption(
-          title: 'Face & tone focus',
-          isSelected: _photoType == 'face',
-          onTap: () => setState(() => _photoType = 'face'),
-        ),
-        _buildSelectableOption(
-          title: 'Body & posture focus',
-          isSelected: _photoType == 'body',
-          onTap: () => setState(() => _photoType = 'body'),
-        ),
-        _buildSelectableOption(
-          title: 'Both (Recommended)',
-          isSelected: _photoType == 'both',
-          onTap: () => setState(() => _photoType = 'both'),
-        ),
-        const SizedBox(height: 16),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('Enable Sunday morning photo prompt', style: OmnyaTypography.bodyMedium()),
-          value: _sundayPrompt,
-          activeTrackColor: OmnyaColors.plum,
-          onChanged: (val) => setState(() => _sundayPrompt = val),
-        ),
+        ...children,
       ],
     );
   }
+}
 
-  Widget _buildSelectableOption({
-    required String title,
-    String? subtitle,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+class _Option extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+  const _Option({required this.title, this.subtitle, required this.selected, required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? (isDark ? OmnyaColors.plumSoft : OmnyaColors.plum)
-                : (isDark ? const Color(0xFF221F1C) : OmnyaColors.cream),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isSelected
-                  ? (isDark ? OmnyaColors.plumSoft : OmnyaColors.plum)
-                  : (isDark ? const Color(0xFF38332E) : OmnyaColors.taupe.withValues(alpha: 0.35)),
-              width: isSelected ? 1.5 : 1.0,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: selected ? OmnyaColors.plumSubtle : OmnyaColors.cream,
+              borderRadius: BorderRadius.circular(OmnyaRadius.control),
+              // Same border width in both states, so selecting never shifts the layout.
+              border: Border.all(color: selected ? OmnyaColors.plum : OmnyaColors.taupe, width: 1.5),
             ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: OmnyaColors.plum.withValues(alpha: 0.22),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: OmnyaTypography.label(
-                        color: isSelected ? OmnyaColors.cream : (isDark ? OmnyaColors.cream : OmnyaColors.charcoal),
-                        weight: FontWeight.w600,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: OmnyaTypography.bodySmall(
-                          color: isSelected ? OmnyaColors.sandMuted : OmnyaColors.taupeDark,
-                        ),
-                      ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: OmnyaTypography.label(weight: FontWeight.w600)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!, style: OmnyaTypography.bodySmall()),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, anim) => ScaleTransition(
-                  scale: anim,
-                  child: FadeTransition(opacity: anim, child: child),
-                ),
-                child: isSelected
-                    ? const HugeIcon(
-                        key: ValueKey('selected'),
-                        icon: HugeIcons.strokeRoundedCheckmarkCircle03,
-                        color: OmnyaColors.cream,
-                        size: 22,
-                      )
-                    : SizedBox(
-                        key: const ValueKey('unselected'),
-                        width: 22,
-                        height: 22,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark ? const Color(0xFF4A443E) : OmnyaColors.taupe.withValues(alpha: 0.45),
-                              width: 1.5,
+                SizedBox.square(
+                  dimension: 24,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+                    child: selected
+                        ? const HugeIcon(
+                            key: ValueKey(true),
+                            icon: HugeIcons.strokeRoundedCheckmarkCircle03,
+                            color: OmnyaColors.plum,
+                            size: 24,
+                          )
+                        : Container(
+                            key: const ValueKey(false),
+                            margin: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: OmnyaColors.taupe, width: 1.5),
                             ),
                           ),
-                        ),
-                      ),
-              ),
-            ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _Summary extends StatelessWidget {
+  final List<String> compounds;
+  final Set<String> goals;
+  const _Summary({required this.compounds, required this.goals});
+
+  @override
+  Widget build(BuildContext context) {
+    final ghkForGlow = compounds.contains('GHK-Cu') && (goals.contains('Glow') || goals.contains('All of it'));
+    return ListView(
+      children: [
+        Text('Your protocol is ready.', style: OmnyaTypography.displayMedium()),
+        const SizedBox(height: 12),
+        Text(
+          ghkForGlow
+              ? "Women running GHK-Cu for glow usually see skin changes around week 4. Let's track yours."
+              : 'Log each dose and check in daily. Your first pattern shows up within two weeks.',
+          style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoalMuted),
+        ),
+        if (compounds.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Text('In your stack', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+          const SizedBox(height: 8),
+          for (final c in compounds)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(c, style: OmnyaTypography.headline()),
+            ),
+          const SizedBox(height: 6),
+          Text('Add your dose and schedule for each from Today or Stack.', style: OmnyaTypography.bodySmall()),
+        ],
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: OmnyaColors.sandMuted,
+            borderRadius: BorderRadius.circular(OmnyaRadius.control),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Photos stay on your phone. No account needed.',
+                style: OmnyaTypography.label(weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(AppCopy.medicalDisclaimer, style: OmnyaTypography.bodySmall(color: OmnyaColors.charcoalMuted)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,722 +1,690 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/compound_directory.dart';
 import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
-import '../../../core/widgets/liquid_glass_container.dart';
-import '../../../core/widgets/dose_celebration_action.dart';
-import '../../../core/widgets/slide_page_route.dart';
-import '../../../data/repositories/protocol_repository.dart';
-import '../../../domain/outcome_correlator.dart';
-import '../../core/omnya_header.dart';
-import '../../core/sync_status_indicator.dart';
-import '../photo_read/weekly_photo_read_view.dart';
+import '../../../core/widgets/omnya_card.dart';
+import '../../../core/widgets/omnya_controls.dart';
 import '../../../core/widgets/omnya_pro_badge.dart';
+import '../../../core/widgets/slide_page_route.dart';
+import '../../../core/widgets/tactile_button.dart';
+import '../../../core/widgets/omnya_toast.dart';
+import '../../../data/models/daily_check_in.dart';
+import '../../../data/services/native_service.dart';
+import '../../../data/models/dose_log.dart';
+import '../../../data/repositories/protocol_repository.dart';
+import '../../../domain/insights.dart';
+import '../../../domain/schedule.dart';
+import '../../core/omnya_header.dart';
+import '../../core/settings_sheet.dart';
+import '../../core/sync_status_indicator.dart';
 import '../../onboarding/paywall_view.dart';
-import '../../onboarding/onboarding_quiz_view.dart';
-import 'immersive_dose_log_view.dart';
+import '../photo_read/weekly_photo_view.dart';
+import '../stack/compound_editor_sheet.dart';
+import 'dose_logging.dart';
 
-
-class TodayView extends StatefulWidget {
+/// Spec page 2: one card for the dose, one for the check-in, one insight. Nothing else.
+class TodayView extends StatelessWidget {
   const TodayView({super.key});
-
-  @override
-  State<TodayView> createState() => _TodayViewState();
-}
-
-class _TodayViewState extends State<TodayView> with TickerProviderStateMixin {
-  bool _doseLoggedToday = false;
-  int _selectedEnergy = 4;
-  int _selectedAppetite = 2;
-  bool _photoCaptured = false;
-
-  late final AnimationController _entranceController;
-  late final AnimationController _ambientController;
-  late final Animation<double> _headerAnimation;
-  late final Animation<double> _heroAnimation;
-  late final Animation<double> _checkInAnimation;
-  late final Animation<double> _insightAnimation;
-  late final Animation<double> _ambientGlowAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _entranceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
-    _headerAnimation = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.04, 0.50, curve: Curves.easeOutCubic),
-    );
-    _heroAnimation = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.14, 0.68, curve: Curves.easeOutCubic),
-    );
-    _checkInAnimation = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.26, 0.82, curve: Curves.easeOutCubic),
-    );
-    _insightAnimation = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.38, 0.94, curve: Curves.easeOutCubic),
-    );
-
-    _ambientController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3600),
-    )..repeat(reverse: true);
-
-    _ambientGlowAnimation = CurvedAnimation(
-      parent: _ambientController,
-      curve: Curves.easeInOutSine,
-    );
-
-    Future.microtask(() {
-      if (mounted) {
-        _entranceController.forward();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _entranceController.dispose();
-    _ambientController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<ProtocolRepository>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Pick top scheduled compound (e.g. Retatrutide)
-    final nextCompound = repo.compounds.isNotEmpty ? repo.compounds.first : null;
-    final insight = OutcomeCorrelator.generateTodayInsight(
-      checkIns: repo.checkIns,
+    final now = DateTime.now();
+    final insight = todayInsight(
       compounds: repo.compounds,
-      doseLogs: repo.doseLogs,
-      hasCycle: repo.profile?.hasCycle ?? true,
+      logs: repo.doseLogs,
+      checkIns: repo.checkIns,
+      hasCycle: repo.profile?.hasCycle ?? false,
+      now: now,
     );
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
-            child: RefreshIndicator(
-              color: OmnyaColors.plum,
-              backgroundColor: isDark ? const Color(0xFF282523) : OmnyaColors.cream,
-              onRefresh: () => repo.syncWithCloud(force: true),
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 120),
-                children: [
-                  _StaggeredEntranceItem(
-                    animation: _headerAnimation,
-                    slideOffset: -22.0,
-                    child: OmnyaHeader(
-                      title: 'Today',
-                      showLogo: true,
-                      onLogoTap: () => _showAppMenuSheet(context, repo),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          OmnyaProBadge(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                SlidePageRoute(page: const PaywallView()),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          const SyncStatusIndicator(),
-                          const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            _showAppMenuSheet(context, repo);
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF282523) : OmnyaColors.cream,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isDark ? const Color(0xFF3E3935) : OmnyaColors.taupe.withValues(alpha: 0.35),
-                                width: 1.2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const HugeIcon(
-                              icon: HugeIcons.strokeRoundedSettings01,
-                              color: OmnyaColors.plum,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Card 1: Next Dose Card (Spec Page 2)
-                _StaggeredEntranceItem(
-                  animation: _heroAnimation,
-                  slideOffset: 48.0,
-                  applyScale: true,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: AnimatedBuilder(
-                      animation: _ambientGlowAnimation,
-                      builder: (context, cardContent) {
-                        final glow = _ambientGlowAnimation.value;
-                        return Transform.scale(
-                          scale: 1.0 + (0.007 * glow),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF2A1521) : OmnyaColors.plum,
-                              borderRadius: BorderRadius.circular(28),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08 + 0.10 * glow),
-                                width: 1.2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: OmnyaColors.plum.withValues(
-                                    alpha: isDark ? 0.35 + 0.15 * glow : 0.26 + 0.16 * glow,
-                                  ),
-                                  blurRadius: 20 + 16 * glow,
-                                  spreadRadius: glow * 2.2,
-                                  offset: Offset(0, 8 + 4 * glow),
-                                ),
-                                BoxShadow(
-                                  color: OmnyaColors.plumSoft.withValues(
-                                    alpha: isDark ? 0.20 * glow : 0.16 * glow,
-                                  ),
-                                  blurRadius: 42 + 20 * glow,
-                                  spreadRadius: 2.0 + glow * 5.0,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(26),
-                            child: cardContent,
-                          ),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Dose',
-                                style: OmnyaTypography.bodySmall(
-                                  color: OmnyaColors.sandMuted.withValues(alpha: 0.8),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  nextCompound?.category.label ?? 'body',
-                                  style: OmnyaTypography.tag(color: OmnyaColors.cream),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            nextCompound != null
-                                ? '${nextCompound.name.substring(0, 4)}, ${nextCompound.doseMg.toStringAsFixed(0)} mg'
-                                : 'Reta, 2 mg',
-                            style: OmnyaTypography.displayMedium(color: OmnyaColors.cream),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${nextCompound?.injectionSite ?? 'Left thigh'} · due 8:00 am',
-                            style: OmnyaTypography.bodyMedium(
-                              color: OmnyaColors.sandMuted.withValues(alpha: 0.9),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          DoseCelebrationAction(
-                            isLogged: _doseLoggedToday,
-                            compoundName: nextCompound?.name ?? 'Retatrutide',
-                            nextSite: nextCompound?.injectionSite ?? 'Right thigh',
-                            onLog: () {
-                              final currentSite = nextCompound?.injectionSite ?? 'Left thigh';
-                              if (nextCompound != null) {
-                                repo.logDose(
-                                  compoundId: nextCompound.id,
-                                  injectionSite: nextCompound.injectionSite,
-                                );
-                              }
-                              setState(() => _doseLoggedToday = true);
-
-                              final updatedNextSite = repo.compounds.isNotEmpty
-                                  ? repo.compounds.first.injectionSite
-                                  : 'Right thigh';
-
-                              ImmersiveDoseLogView.show(
-                                context,
-                                compoundName: nextCompound?.name ?? 'Retatrutide',
-                                doseMg: nextCompound?.doseMg ?? 2.0,
-                                injectionSite: currentSite,
-                                nextSite: updatedNextSite,
-                                category: nextCompound?.category.label ?? 'body',
-                              );
-                            },
-                            onUndo: () {
-                              setState(() => _doseLoggedToday = false);
-                            },
-                            onViewDetails: () {
-                              ImmersiveDoseLogView.show(
-                                context,
-                                compoundName: nextCompound?.name ?? 'Retatrutide',
-                                doseMg: nextCompound?.doseMg ?? 2.0,
-                                injectionSite: nextCompound?.injectionSite ?? 'Left thigh',
-                                nextSite: repo.compounds.isNotEmpty
-                                    ? repo.compounds.first.injectionSite
-                                    : 'Right thigh',
-                                category: nextCompound?.category.label ?? 'body',
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Card 2: 3-Tap Daily Check-in Card (Spec Page 2)
-                _StaggeredEntranceItem(
-                  animation: _checkInAnimation,
-                  slideOffset: 60.0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: LiquidGlassContainer(
-                      borderRadius: 28,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Daily check-in',
-                            style: OmnyaTypography.label(
-                              color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          
-                          // Energy tap row
-                          _buildTapRow(
-                            label: 'Energy',
-                            value: _selectedEnergy,
-                            max: 5,
-                            onSelect: (v) {
-                              setState(() => _selectedEnergy = v);
-                              HapticFeedback.selectionClick();
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Appetite tap row
-                          _buildTapRow(
-                            label: 'Appetite',
-                            value: _selectedAppetite,
-                            max: 5,
-                            onSelect: (v) {
-                              setState(() => _selectedAppetite = v);
-                              HapticFeedback.selectionClick();
-                            },
-                          ),
-                          const SizedBox(height: 18),
-
-                          // Photo tap button
-                          InkWell(
-                            onTap: () async {
-                              HapticFeedback.lightImpact();
-                              await Navigator.push(
-                                context,
-                                SlidePageRoute(page: const WeeklyPhotoReadView()),
-                              );
-                              if (mounted) {
-                                setState(() => _photoCaptured = true);
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF282523) : OmnyaColors.cream,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF38332E) : OmnyaColors.taupe.withValues(alpha: 0.3),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  const HugeIcon(
-                                    icon: HugeIcons.strokeRoundedCameraSmile02,
-                                    color: OmnyaColors.plum,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _photoCaptured ? 'Weekly photo captured' : 'Weekly progress photo',
-                                      style: OmnyaTypography.label(
-                                        color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                                        weight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const HugeIcon(
-                                    icon: HugeIcons.strokeRoundedArrowRight01,
-                                    color: OmnyaColors.taupeDark,
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Card 3: Insight Card (Spec Page 2: "Scale's up 2 lb, period's due Thursday. Ignore it.")
-                _StaggeredEntranceItem(
-                  animation: _insightAnimation,
-                  slideOffset: 60.0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: LiquidGlassContainer(
-                      borderRadius: 28,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            insight.headline,
-                            style: OmnyaTypography.tag(
-                              color: OmnyaColors.taupeDark,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            insight.body,
-                            style: OmnyaTypography.headline(
-                              color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+    return RefreshIndicator(
+      color: OmnyaColors.plum,
+      backgroundColor: OmnyaColors.cream,
+      onRefresh: repo.sync,
+      child: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.only(bottom: 120),
+        children: [
+          OmnyaHeader(
+            title: 'Today',
+            showLogo: true,
+            onLogoTap: () => showSettingsSheet(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OmnyaProBadge(onTap: () => Navigator.push(context, SlidePageRoute(page: const PaywallView()))),
+                const SizedBox(width: 8),
+                const SyncStatusIndicator(),
+                const SizedBox(width: 8),
+                OmnyaIconButton(
+                  icon: HugeIcons.strokeRoundedSettings01,
+                  tooltip: 'Settings',
+                  onPressed: () => showSettingsSheet(context),
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(height: 4),
+          _Entrance(
+            index: 0,
+            child: _DoseCard(repo: repo, now: now),
+          ),
+          const SizedBox(height: 16),
+          _Entrance(
+            index: 1,
+            child: _CheckInCard(repo: repo, now: now),
+          ),
+          const SizedBox(height: 16),
+          _Entrance(
+            index: 2,
+            child: _Padded(
+              OmnyaCard(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(insight?.label ?? 'Your patterns', style: OmnyaTypography.tag(color: OmnyaColors.taupeDark)),
+                    const SizedBox(height: 8),
+                    Text(
+                      insight?.text ?? 'Check in for a few days and your first pattern shows up here.',
+                      style: OmnyaTypography.headline(
+                        color: insight == null ? OmnyaColors.charcoalLight : OmnyaColors.charcoal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
 
-  Widget _buildTapRow({
-    required String label,
-    required int value,
-    required int max,
-    required ValueChanged<int> onSelect,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+class _Padded extends StatelessWidget {
+  final Widget child;
+  const _Padded(this.child);
 
-    return Row(
-      children: [
-        SizedBox(
-          width: 75,
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child);
+}
+
+class _DoseCard extends StatelessWidget {
+  final ProtocolRepository repo;
+  final DateTime now;
+  const _DoseCard({required this.repo, required this.now});
+
+  @override
+  Widget build(BuildContext context) {
+    final compounds = repo.compounds;
+    final logs = repo.doseLogs;
+    final next = nextUp(compounds, logs);
+    final unconfigured = compounds.where((c) => !c.isConfigured).firstOrNull;
+
+    if (next == null) {
+      final setUp = unconfigured;
+      return _Padded(
+        _PlumCard(
+          label: setUp == null ? 'Your first dose' : 'Almost ready',
+          title: setUp == null ? 'Nothing to log yet' : 'Set up ${CompoundDirectory.shortName(setUp.name)}',
+          line: setUp == null
+              ? 'Add what you take and your next dose shows up here.'
+              : 'Add your dose and how often you take it.',
+          action: TactileButton(
+            label: setUp == null ? 'Add a compound' : 'Add dose and schedule',
+            variant: TactileButtonVariant.onDark,
+            width: double.infinity,
+            onPressed: () => showCompoundEditor(context, compound: setUp),
+          ),
+        ),
+      );
+    }
+
+    final dueIn = daysBetween(now, nextDueDay(next, logs));
+    final loggedToday = logs.where((l) => sameDay(l.timestamp, now)).toList();
+
+    // Nothing due until a later day and she already logged today: show the done state.
+    if (dueIn > 0 && loggedToday.isNotEmpty) {
+      final last = loggedToday.first;
+      return _Padded(
+        _PlumCard(
+          label: 'Done for today',
+          title: 'Logged ${CompoundDirectory.shortName(last.compoundName)}',
+          line:
+              'Next: ${CompoundDirectory.shortName(next.name)}, ${nextDoseLabel(next, logs)} · ${dueLine(next, logs, now)}',
+          action: _UndoPill(log: last, repo: repo),
+        ),
+      );
+    }
+
+    return _Padded(
+      _PlumCard(
+        label: 'Next dose',
+        chip: next.category.label,
+        title: '${CompoundDirectory.shortName(next.name)}, ${nextDoseLabel(next, logs)}',
+        line: dueLine(next, logs, now),
+        action: TactileButton(
+          label: 'Log it',
+          variant: TactileButtonVariant.onDark,
+          width: double.infinity,
+          onPressed: () => logDoseWithFeedback(context, next),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlumCard extends StatelessWidget {
+  final String label;
+  final String? chip;
+  final String title;
+  final String line;
+  final Widget action;
+
+  const _PlumCard({required this.label, this.chip, required this.title, required this.line, required this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    return OmnyaCard(
+      color: OmnyaColors.plum,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(label, style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
+              ),
+              if (chip != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: OmnyaColors.cream.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(OmnyaRadius.chip),
+                  ),
+                  child: Text(chip!, style: OmnyaTypography.tag(color: OmnyaColors.cream)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(title, style: OmnyaTypography.displayMedium(color: OmnyaColors.cream)),
+          const SizedBox(height: 6),
+          Text(line, style: OmnyaTypography.bodyMedium(color: OmnyaColors.sandMuted)),
+          const SizedBox(height: 22),
+          action,
+        ],
+      ),
+    );
+  }
+}
+
+class _UndoPill extends StatelessWidget {
+  final DoseLog log;
+  final ProtocolRepository repo;
+  const _UndoPill({required this.log, required this.repo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.only(left: 18, right: 6),
+      decoration: BoxDecoration(
+        color: OmnyaColors.cream.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: OmnyaColors.cream.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              [formatDose(log.dose, log.unit), if (log.injectionSite.isNotEmpty) log.injectionSite].join(' · '),
+              style: OmnyaTypography.label(color: OmnyaColors.cream),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              repo.undoDose(log);
+            },
+            style: TextButton.styleFrom(foregroundColor: OmnyaColors.sandMuted),
+            child: Text(
+              'Undo',
+              style: OmnyaTypography.label(color: OmnyaColors.sandMuted, weight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckInCard extends StatefulWidget {
+  final ProtocolRepository repo;
+  final DateTime now;
+  const _CheckInCard({required this.repo, required this.now});
+
+  @override
+  State<_CheckInCard> createState() => _CheckInCardState();
+}
+
+class _CheckInCardState extends State<_CheckInCard> {
+  int? _energy;
+  int? _appetite;
+  bool _periodStarted = false;
+  bool _editing = false;
+  bool _more = false;
+  final _weight = TextEditingController();
+  final _waist = TextEditingController();
+  final _sleep = TextEditingController();
+  final _notes = TextEditingController();
+  int? _pain;
+  Set<String> _effects = {};
+  final _errors = <String, String>{};
+
+  @override
+  void dispose() {
+    for (final c in [_weight, _waist, _sleep, _notes]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  static String _num(double? v) => v == null ? '' : v.toString().replaceFirst(RegExp(r'\.0$'), '');
+
+  void _edit(DailyCheckIn existing) {
+    setState(() {
+      _editing = true;
+      _energy = existing.energyLevel;
+      _appetite = existing.appetiteLevel;
+      _periodStarted = existing.periodStarted;
+      _weight.text = _num(existing.weightLbs);
+      _waist.text = _num(existing.waistIn);
+      _sleep.text = _num(existing.sleepHours);
+      _notes.text = existing.notes;
+      _pain = existing.pain;
+      _effects = {...existing.sideEffects};
+      _more =
+          existing.waistIn != null ||
+          existing.sleepHours != null ||
+          existing.pain != null ||
+          existing.sideEffects.isNotEmpty ||
+          existing.notes.isNotEmpty;
+    });
+  }
+
+  /// Empty is fine; anything typed must be a number in [min, max].
+  double? _read(TextEditingController c, String key, double min, double max, String error) {
+    final text = c.text.trim();
+    if (text.isEmpty) return null;
+    final v = parseNumber(text);
+    if (v == null || v < min || v > max) _errors[key] = error;
+    return v;
+  }
+
+  Future<void> _fromHealth() async {
+    final w = await NativeService.latestWeight();
+    if (!mounted) return;
+    if (w == null) {
+      OmnyaToast.show(
+        context,
+        title: 'No weight in Apple Health',
+        message: 'Allow Omnya to read weight in the Health app, or type it here.',
+        type: OmnyaToastType.info,
+      );
+      return;
+    }
+    setState(() => _weight.text = w.lbs.toStringAsFixed(1));
+  }
+
+  Future<void> _save() async {
+    _errors.clear();
+    final weight = _read(_weight, 'weight', 50, 800, 'Enter your weight in pounds, like 142.5');
+    final waist = _read(_waist, 'waist', 15, 80, 'Enter inches, like 29.5');
+    final sleep = _read(_sleep, 'sleep', 0, 24, 'Enter hours, like 7.5');
+    if (_errors.isNotEmpty) {
+      setState(() {});
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    HapticFeedback.mediumImpact();
+    await widget.repo.saveCheckIn(
+      energy: _energy!,
+      appetite: _appetite!,
+      weightLbs: weight,
+      waistIn: waist,
+      sleepHours: sleep,
+      pain: _pain,
+      sideEffects: _effects.toList(),
+      notes: _notes.text,
+      periodStarted: _periodStarted,
+    );
+    if (mounted) setState(() => _editing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = widget.repo.checkInOn(widget.now);
+    final hasCycle = widget.repo.profile?.hasCycle ?? false;
+    final photoThisWeek = widget.repo.photoInWeekOf(widget.now) != null;
+
+    return _Padded(
+      OmnyaCard(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Daily check-in', style: OmnyaTypography.label(weight: FontWeight.w600)),
+                ),
+                if (today != null && !_editing)
+                  GestureDetector(
+                    onTap: () => _edit(today),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Text(
+                        'Edit',
+                        style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (today != null && !_editing)
+              Text(
+                [
+                  if (today.energyLevel != null) 'Energy ${today.energyLevel}',
+                  if (today.appetiteLevel != null) 'Appetite ${today.appetiteLevel}',
+                  if (today.weightLbs != null) '${_num(today.weightLbs)} lb',
+                  if (today.waistIn != null) '${_num(today.waistIn)} in waist',
+                  if (today.sleepHours != null) '${_num(today.sleepHours)} h sleep',
+                  if (today.pain != null) 'Pain ${today.pain}',
+                  ...today.sideEffects,
+                  if (today.periodStarted) 'Period started',
+                ].join(' · '),
+                style: OmnyaTypography.bodyLarge(color: OmnyaColors.charcoalMuted),
+              )
+            else ...[
+              _Scale(label: 'Energy', value: _energy, onSelect: (v) => setState(() => _energy = v)),
+              const SizedBox(height: 14),
+              _Scale(label: 'Appetite', value: _appetite, onSelect: (v) => setState(() => _appetite = v)),
+              const SizedBox(height: 16),
+              OmnyaField.number(
+                label: 'Weight (optional)',
+                controller: _weight,
+                suffix: 'lb',
+                error: _errors['weight'],
+              ),
+              if (defaultTargetPlatform == TargetPlatform.iOS)
+                TextButton(
+                  onPressed: _fromHealth,
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: OmnyaColors.plum),
+                  child: Text(
+                    'Use my weight from Apple Health',
+                    style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
+                  ),
+                ),
+              if (!_more)
+                TextButton(
+                  onPressed: () => setState(() => _more = true),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: OmnyaColors.plum),
+                  child: Text(
+                    'Add waist, sleep, pain or notes',
+                    style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
+                  ),
+                )
+              else ...[
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: OmnyaField.number(
+                        label: 'Waist',
+                        controller: _waist,
+                        suffix: 'in',
+                        error: _errors['waist'],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OmnyaField.number(
+                        label: 'Sleep',
+                        controller: _sleep,
+                        suffix: 'hours',
+                        error: _errors['sleep'],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text('Pain', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (var v = 0; v <= 10; v++)
+                      _Pill(
+                        label: '$v',
+                        selected: _pain == v,
+                        onTap: () => setState(() => _pain = _pain == v ? null : v),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text('Anything else', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final e in sideEffectOptions)
+                      _Pill(
+                        label: e,
+                        selected: _effects.contains(e),
+                        onTap: () => setState(() => _effects.contains(e) ? _effects.remove(e) : _effects.add(e)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                OmnyaField(
+                  label: 'Skin and hair notes',
+                  controller: _notes,
+                  hint: 'What you noticed',
+                  maxLength: 500,
+                  capitalization: TextCapitalization.sentences,
+                ),
+              ],
+              if (hasCycle) ...[
+                const SizedBox(height: 12),
+                _Toggle(
+                  label: 'My period started today',
+                  value: _periodStarted,
+                  onChanged: (v) => setState(() => _periodStarted = v),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TactileButton(
+                label: today == null ? 'Save check-in' : 'Save changes',
+                width: double.infinity,
+                onPressed: _energy != null && _appetite != null ? _save : null,
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(context, SlidePageRoute(page: const WeeklyPhotoView()));
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    const HugeIcon(icon: HugeIcons.strokeRoundedCameraSmile02, color: OmnyaColors.plum, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        photoThisWeek ? "This week's photo is in" : "Take this week's photo",
+                        style: OmnyaTypography.label(weight: FontWeight.w600),
+                      ),
+                    ),
+                    const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, color: OmnyaColors.taupeDark, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _Pill({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: selected ? OmnyaColors.plum : OmnyaColors.sandMuted,
+            borderRadius: BorderRadius.circular(OmnyaRadius.chip),
+          ),
           child: Text(
             label,
-            style: OmnyaTypography.bodyMedium(
-              color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalMuted,
+            style: OmnyaTypography.label(
+              color: selected ? OmnyaColors.cream : OmnyaColors.charcoalMuted,
+              weight: FontWeight.w600,
             ),
           ),
         ),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(max, (index) {
-              final val = index + 1;
-              final isSelected = val <= value;
-              return GestureDetector(
-                onTap: () => onSelect(val),
+      ),
+    );
+  }
+}
+
+class _Scale extends StatelessWidget {
+  final String label;
+  final int? value;
+  final ValueChanged<int> onSelect;
+  const _Scale({required this.label, required this.value, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 72, child: Text(label, style: OmnyaTypography.bodyMedium())),
+        for (var v = 1; v <= 5; v++) ...[
+          if (v > 1) const SizedBox(width: 6),
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: value == v,
+              label: '$label $v of 5',
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSelect(v);
+                },
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 38,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? (isDark ? OmnyaColors.plumSoft : OmnyaColors.plum)
-                        : (isDark ? const Color(0xFF282523) : OmnyaColors.sandMuted),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  duration: const Duration(milliseconds: 160),
+                  height: 40,
                   alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: value != null && v <= value! ? OmnyaColors.plum : OmnyaColors.sandMuted,
+                    borderRadius: BorderRadius.circular(OmnyaRadius.chip),
+                  ),
                   child: Text(
-                    '$val',
+                    '$v',
                     style: OmnyaTypography.label(
-                      color: isSelected ? OmnyaColors.cream : OmnyaColors.charcoalMuted,
-                      weight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: value != null && v <= value! ? OmnyaColors.cream : OmnyaColors.charcoalMuted,
+                      weight: FontWeight.w600,
                     ),
                   ),
                 ),
-              );
-            }),
+              ),
+            ),
           ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Toggle extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _Toggle({required this.label, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label, style: OmnyaTypography.bodyMedium(color: OmnyaColors.charcoal)),
+        ),
+        Switch.adaptive(
+          value: value,
+          activeTrackColor: OmnyaColors.plum,
+          onChanged: (v) {
+            HapticFeedback.selectionClick();
+            onChanged(v);
+          },
         ),
       ],
     );
   }
-
-  void _showAppMenuSheet(BuildContext context, ProtocolRepository repo) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Material(
-          color: isDark ? const Color(0xFF1E1A18) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 36),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Quick Access',
-                style: OmnyaTypography.headline(
-                  color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 1. Replay Onboarding Quiz
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: OmnyaColors.plum.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: HugeIcon(
-                      icon: HugeIcons.strokeRoundedQuiz03,
-                      color: OmnyaColors.plum,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                title: Text('Protocol Assessment', style: OmnyaTypography.label(weight: FontWeight.w600)),
-                subtitle: Text('Personalize your wellness goals, peptides, and cycle', style: OmnyaTypography.bodySmall()),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: OmnyaColors.taupeDark,
-                  size: 18,
-                ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    SlidePageRoute(
-                      page: OnboardingQuizView(
-                        onFinished: () => Navigator.pop(context),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 16),
-
-              // 2. Pro Paywall & Subscription
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: OmnyaColors.plum.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: HugeIcon(
-                      icon: HugeIcons.strokeRoundedHonourStar,
-                      color: OmnyaColors.plum,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                title: Text('Omnya Pro', style: OmnyaTypography.label(weight: FontWeight.w600)),
-                subtitle: Text(
-                  repo.isPro ? 'Pro Active · Manage your plan' : 'Unlock photo reads, cycle correlations, and private circle',
-                  style: OmnyaTypography.bodySmall(),
-                ),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: OmnyaColors.taupeDark,
-                  size: 18,
-                ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    SlidePageRoute(page: const PaywallView()),
-                  );
-                },
-              ),
-              const Divider(height: 16),
-
-              // 3. Vault Cloud Backup Info & Action
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: (repo.hasPendingSync ? const Color(0xFFD97706) : OmnyaColors.plum).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: HugeIcon(
-                      icon: repo.hasPendingSync
-                          ? HugeIcons.strokeRoundedCloudUpload
-                          : HugeIcons.strokeRoundedCloudCheck,
-                      color: repo.hasPendingSync ? const Color(0xFFD97706) : OmnyaColors.plum,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                title: Text('Vault Cloud Backup', style: OmnyaTypography.label(weight: FontWeight.w600)),
-                subtitle: Text(
-                  repo.isSyncing
-                      ? 'Syncing with Supabase...'
-                      : (repo.hasPendingSync
-                          ? 'Offline: Changes saved locally (tap to sync now)'
-                          : 'Encrypted cloud backup active (tap to sync)'),
-                  style: OmnyaTypography.bodySmall(
-                    color: repo.hasPendingSync ? const Color(0xFFD97706) : OmnyaColors.charcoalLight,
-                  ),
-                ),
-                trailing: repo.isSyncing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: OmnyaColors.plum),
-                      )
-                    : const HugeIcon(
-                        icon: HugeIcons.strokeRoundedRefresh,
-                        color: OmnyaColors.taupeDark,
-                        size: 18,
-                      ),
-                onTap: () async {
-                  HapticFeedback.lightImpact();
-                  Navigator.pop(ctx);
-                  await repo.syncWithCloud(force: true);
-                },
-              ),
-
-            ],
-          ),
-        ),
-      );
-    },
-  );
-  }
 }
 
-/// Performant staggered entrance item applying a subtle vertical glide and opacity reveal
-class _StaggeredEntranceItem extends StatelessWidget {
-  final Animation<double> animation;
+/// One soft rise per card when Today first appears. Skipped with reduced motion.
+class _Entrance extends StatelessWidget {
+  final int index;
   final Widget child;
-  final double slideOffset;
-  final bool applyScale;
-
-  const _StaggeredEntranceItem({
-    required this.animation,
-    required this.child,
-    this.slideOffset = 24.0,
-    this.applyScale = false,
-  });
+  const _Entrance({required this.index, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, staticChild) {
-        final t = animation.value;
-        return Opacity(
-          opacity: t.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, (1.0 - t) * slideOffset),
-            child: applyScale
-                ? Transform.scale(
-                    scale: 0.93 + (0.07 * t),
-                    child: staticChild,
-                  )
-                : staticChild,
-          ),
-        );
-      },
+    if (MediaQuery.of(context).disableAnimations) return child;
+    final start = index * 0.12;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      curve: Interval(start, (start + 0.7).clamp(0, 1), curve: Curves.easeOutCubic),
+      builder: (_, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, 14 * (1 - t)), child: child),
+      ),
       child: child,
     );
   }
 }
-

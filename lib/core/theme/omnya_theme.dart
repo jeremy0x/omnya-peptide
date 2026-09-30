@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'omnya_colors.dart';
 
+/// Light only: dark mode was switched off on purpose, it read badly on devices.
 abstract final class OmnyaTheme {
   static ThemeData get lightTheme {
     return ThemeData(
@@ -13,10 +14,11 @@ abstract final class OmnyaTheme {
       colorScheme: const ColorScheme.light(
         primary: OmnyaColors.plum,
         secondary: OmnyaColors.taupeDark,
-        surface: Colors.white,
+        surface: OmnyaColors.cream,
         onSurface: OmnyaColors.charcoal,
-        outline: Color(0x18000000),
-        outlineVariant: Color(0x0E000000),
+        error: OmnyaColors.error,
+        outline: OmnyaColors.line,
+        outlineVariant: OmnyaColors.line,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -25,45 +27,13 @@ abstract final class OmnyaTheme {
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
-      dividerColor: const Color(0x0E000000),
-      dividerTheme: const DividerThemeData(
-        color: Color(0x0E000000),
-        thickness: 0.75,
-        space: 24,
+      dividerTheme: const DividerThemeData(color: OmnyaColors.line, thickness: 1, space: 24),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: OmnyaColors.plum,
+        selectionHandleColor: OmnyaColors.plum,
       ),
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-    );
-  }
-
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      fontFamily: 'InstrumentSans',
-      scaffoldBackgroundColor: OmnyaColors.charcoal,
-      primaryColor: OmnyaColors.plumSoft,
-      colorScheme: const ColorScheme.dark(
-        primary: OmnyaColors.plumSoft,
-        secondary: OmnyaColors.taupe,
-        surface: OmnyaColors.charcoal,
-        onSurface: OmnyaColors.cream,
-        outline: Color(0x22FFFFFF),
-        outlineVariant: Color(0x14FFFFFF),
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-      ),
-      dividerColor: const Color(0x14FFFFFF),
-      dividerTheme: const DividerThemeData(
-        color: Color(0x14FFFFFF),
-        thickness: 0.75,
-        space: 24,
-      ),
+      datePickerTheme: const DatePickerThemeData(backgroundColor: OmnyaColors.cream),
+      dialogTheme: const DialogThemeData(backgroundColor: OmnyaColors.cream),
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
     );

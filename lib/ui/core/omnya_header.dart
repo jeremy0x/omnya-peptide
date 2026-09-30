@@ -49,9 +49,7 @@ class OmnyaHeader extends StatelessWidget {
                       child: Text(
                         title,
                         overflow: TextOverflow.ellipsis,
-                        style: OmnyaTypography.displayMedium(
-                          color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                        ),
+                        style: OmnyaTypography.displayMedium(color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal),
                       ),
                     ),
                   ],
@@ -60,9 +58,7 @@ class OmnyaHeader extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
-                    style: OmnyaTypography.tag(
-                      color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalLight,
-                    ),
+                    style: OmnyaTypography.tag(color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalLight),
                   ),
                 ],
               ],

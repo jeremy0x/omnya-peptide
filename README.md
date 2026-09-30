@@ -1,138 +1,78 @@
-# <img src="assets/logo.png" width="44" height="44" alt="Omnya Peptide Logo" style="vertical-align: middle; margin-right: 8px;" /> Omnya Peptide
+# <img src="assets/images/logo.png" width="40" height="40" alt="" style="vertical-align: middle;" /> Omnya
 
-A mobile protocol tracker for iOS and Android built for women managing peptides, glow blends, and GLP-1 wellness routines.
+A peptide and injection protocol tracker for women, built with Flutter for iOS and Android.
 
-Existing trackers record what went in. Omnya Peptide tracks what came out, designed as a calm wellness product rather than a laboratory tool.
+Most trackers only record what went in. Omnya also shows what came out: weight against her cycle, weekly photos side by side, and plain-English notes drawn from her own logs. It is designed to feel like a wellness app, not a lab tool.
 
-## Project Structure
+## What the app does
 
-This monorepo contains the Flutter mobile client and the Node.js Fastify backend synchronization API:
+- **Today**: the next dose due, logged in one tap with an undo. A daily check-in for energy and appetite, with optional weight (typed or from Apple Health), waist, sleep, pain, side effects, skin notes and period start. One short note drawn from her own data, such as a vial running out or likely water weight before a period.
+- **Progress**: her first and latest weekly photos in a before and after slider, a weight chart that shades the week before each logged period, what changed since each compound started (from day 14), a weekly read of her photos measured on the phone, and a weekly report. A 9:16 progress card she can share, with an optional photo that has faces blurred.
+- **Stack**: each compound with its dose and unit, route, half-life, dose steps, schedule, next injection site, mixed-vial expiry, doses left, runout day and monthly cost. A mixing calculator converts vial strength into syringe units.
+- **Circle**: an invite-only group of up to 5 people who see each other's dose consistency and nothing else.
+- **Reminders**: local notifications on dose days, before a runout, when a mixed vial expires, a Sunday photo prompt and the weekly report. Nothing goes through a server.
+- **Widgets**: next dose, days on protocol and runout on the home and lock screen, plus a Live Activity on shot day.
+- **Settings**: Face ID lock, a doctor report PDF of the last 90 days, and import from a Shotsy CSV export.
+- **Milestones**: a full-screen moment on the first dose, day 30 and day 90. Day 30 and day 90 show her own 90-day goal back to her.
+
+She enters every compound, dose and schedule herself. The app never suggests a dose.
+
+## How it is built
+
+- **App**: Flutter 3.44 and Dart 3.12, with Provider for state. The phone is the source of truth: everything works offline and backs up when a connection is available.
+- **Backend**: Supabase only. Each install signs in anonymously, and row level security in `supabase/schema.sql` limits every row to its owner. There is no custom server.
+- **Photos**: weekly photos are saved in the app's private storage on the phone and are never uploaded. Face measurements and blurring use Apple's Vision framework on the phone.
+- **iOS native**: `ios/Runner/AppDelegate.swift` holds the Health, Vision and widget channel. `ios/OmnyaWidget` is the widget and Live Activity extension.
 
 ```text
-peptide/
-├── apps/
-│   ├── mobile/             # Flutter mobile app (iOS & Android)
-│   │   ├── assets/         # Bundled offline fonts (Fraunces & Instrument Sans) & images
-│   │   ├── lib/
-│   │   │   ├── core/       # Colors, typography, glass components, buttons, toast
-│   │   │   ├── data/       # Local storage, models, repositories, API sync client
-│   │   │   ├── domain/     # Reconstitution dilution math and outcome correlation
-│   │   │   └── ui/         # Onboarding, Today, Progress, Stack, Circle, Photo Read
-│   │   └── test/           # Unit, widget, and integration tests
-│   └── server/             # Fastify TypeScript server (deployed on Render)
-│       ├── src/            # Auth, data sync, circles, and webhooks
-│       └── supabase/       # PostgreSQL schema & production RLS policies
-└── README.md
+lib/
+  core/          theme, shared widgets, copy, compound names
+  data/          models, local storage, Supabase client, repository
+  domain/        schedule math, insights, mixing calculator
+  ui/            screens
+tool/            regenerates the tab bar icons from Hugeicons
+test/            unit and widget tests
+integration_test/
+supabase/        database schema and access rules
+assets/          fonts (Fraunces, Instrument Sans) and logo
 ```
 
-## Production Infrastructure
+## Setup
 
-- **Mobile Client**: Flutter 3.44+, offline-first architecture with automatic background sync to Supabase and Render.
-- **Backend API**: Node.js Fastify service hosted on Render at `https://omnya-peptide.onrender.com`.
-  - Health check: `GET /health`
-  - Automated 24/7 uptime monitoring supported via UptimeRobot.
-- **Database & Auth**: Supabase PostgreSQL with strict Row Level Security (RLS) policies scoped per-user via anonymous JWT authentication (`auth.uid()`).
+1. Install Flutter 3.44 or newer, then run `flutter pub get`.
+2. In the Supabase dashboard, turn on anonymous sign-ins under Authentication > Sign In / Providers.
+3. Run `supabase/schema.sql` once in the SQL editor. It resets the app tables, so run it again only before launch.
+4. Run the app with `flutter run`.
 
-## Design System
+The Supabase URL and publishable key are in `lib/data/services/cloud_service.dart`. The publishable key is meant to ship inside apps; access is enforced by the database rules.
 
-- **Tone**: Warm minimal, comfortable to open in public.
-- **Explicit constraints**: No clinical blue, no needles or syringes, no chemical formulas, no neon accents on black, no all-caps labels.
-- **Palette**:
-  - Cream (`#FDFBF7`): Main canvas
-  - Sand (`#F4EFEA`): Card surfaces
-  - Taupe (`#B5A496` / `#8C7A6B`): Outlines and labels
-  - Plum (`#4A1E35` / `#361325`): Primary actions and accents
-  - Charcoal (`#1F1D1C`): Text and dark mode surface
-- **Typography**:
-  - Headlines, numbers, and milestones: **Fraunces** (bundled offline TTF, serif with tabular numbers)
-  - Body, tags, and controls: **Instrument Sans** (bundled offline TTF, humanist sans)
-- **Interaction details**:
-  - Tactile button compression (`scale 0.96`) with light haptic feedback.
-  - Horizontal sliding route transitions on non-root screens.
-  - Optical liquid glass surfaces with backdrop blur.
-  - Linear icons from `hugeicons`.
+## Building for release
 
-## Core Screens
+- **Android**: add `android/key.properties` with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then run `flutter build appbundle` (or `flutter build apk`). Without that file, release builds are signed with the debug key, which the Play Store rejects. Builds include arm64 only.
+- **iOS**: set your team in Xcode. In the Apple Developer portal, turn on HealthKit and App Groups (`group.com.omnya.peptide`) for `com.omnya.peptide.peptideApp`, and App Groups for `com.omnya.peptide.peptideApp.OmnyaWidget`. Then run `flutter build ipa`.
 
-### Today
-- **Next Dose Card**: Shows scheduled compound, dose, site rotation, and a one-tap log action.
-- **Daily Check-in**: Three taps for energy, appetite, and optional photo in under 10 seconds.
-- **Weekly Insight**: Contextual note flagging normal cycle water retention (*"Scale is up 2 lb, period is due Thursday. Ignore it."*).
+## Checks
 
-### Progress
-- **Before/After Slider**: Drag to compare baseline with current photo.
-- **Weight and Cycle Band**: Plots weight curve against shaded cycle phases to contextualize water weight.
-- **Plain-English Correlation**: Directly ties adherence to visible changes (*"Since GHK-Cu started: +14% skin brightness, 3 weeks"*).
-- **Social Export**: Generates 9:16 progress cards for Instagram and TikTok stories.
-
-### Stack
-- **Inventory**: Shows compounds, runout dates, cadence, and monthly spend ($312/month).
-- **Reconstitution Calculator**: Volumetric dilution tool calculating insulin syringe units (U-100 and U-40).
-
-### Circle
-- **Private Cohort**: Invite-only accountability group capped at 5 members with unique 5-character personal invite codes.
-- **Consistency Only**: Displays check-in streaks (*"4 of 5 checked in today"*). Weight metrics are hidden by default.
-
-### Weekly Photo Read
-- **Ghost Camera**: Overlays previous week's capture with adjustable opacity to match framing and lighting.
-- **Honest Deltas**: Tracks face fullness, skin evenness, and waistline trends in plain English without fake praise.
-
-## App Store Compliance and Privacy
-
-Because most peptides are not FDA-approved, the app follows strict App Store guidelines:
-- No vendor links or sourcing information anywhere in the app.
-- The reconstitution calculator is framed strictly as a mathematical dilution tool.
-- The user enters their own compounds and doses; the app never prescribes dosing.
-- Photos remain strictly in an on-device vault and are never uploaded without explicit export.
-- **No account required to start**: Users immediately start tracking anonymously without creating an account or providing an email.
-
-## Getting Started
-
-### Prerequisites
-- Flutter SDK 3.44+
-- Node.js 20+
-
-### Mobile App
 ```bash
-cd apps/mobile
-flutter pub get
-flutter run
-```
-
-To build a release Android APK (automatically loads `IMGBB_API_KEY` from `apps/mobile/.env`):
-```bash
-cd apps/mobile
-./build_apk.sh
-```
-Or manually with `--dart-define`:
-```bash
-cd apps/mobile
-flutter build apk --release --dart-define=IMGBB_API_KEY="your_api_key_here"
-```
-
-### Backend Server
-```bash
-cd apps/server
-cp .env.example .env # Fill in your SUPABASE_URL and SUPABASE_ANON_KEY
-npm install
-npm run build
-npm start
-```
-
-Default local port is 3000. Health check endpoint is at `GET /health`.
-
-## Verification & Testing
-
-### Mobile
-```bash
-cd apps/mobile
 flutter analyze
 flutter test
+flutter test integration_test -d <device id>
 ```
 
-### Server
-```bash
-cd apps/server
-npm run build
-npm test
-```
+The integration test uses an in-memory backend, so it never writes to the live database.
+
+## Data and privacy
+
+- **Stays on the phone**: weekly photos, photo measurements, reminder settings and the Face ID lock.
+- **Backed up to Supabase**: onboarding answers, compounds, dose logs and check-ins, including weight. Settings > Delete my data removes them from the phone and the backup.
+- **Shared with a circle**: display name, the last time she logged a dose, and doses logged against doses planned this week.
+
+## App Store rules followed
+
+These come from the product spec:
+
+- No vendor links or sourcing content.
+- The calculator is framed as unit math and carries a disclaimer.
+- Insights describe her own data and never recommend a dose.
+- Onboarding shows a medical disclaimer.
+- Pro plans are shown, but buying is switched off until in-app purchase is connected.

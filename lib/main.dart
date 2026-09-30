@@ -1,54 +1,50 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/omnya_theme.dart';
-import 'data/services/local_storage_service.dart';
-import 'data/services/api_service.dart';
 import 'data/repositories/protocol_repository.dart';
+import 'data/services/cloud_service.dart';
+import 'data/services/local_storage_service.dart';
+import 'data/services/native_service.dart';
+import 'data/services/reminder_service.dart';
+import 'ui/core/app_lock.dart';
 import 'ui/navigation/main_shell.dart';
 import 'ui/onboarding/onboarding_quiz_view.dart';
 import 'ui/splash/splash_view.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Keep system UI transparent for liquid glass feel
   SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
+    const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.dark),
   );
 
-  // Initialize Supabase directly for mobile client
-  try {
-    await Supabase.initialize(
-      url: 'https://aeddscoqzqwnjwokflnz.supabase.co',
-      publishableKey: 'sb_publishable_Ngbc6wpe22CGbsGD9-bXBw_rJS0rSUm',
-    );
-
-    // Sign in anonymously so the client gets a real auth.uid() for RLS
-    final auth = Supabase.instance.client.auth;
-    if (auth.currentSession == null) {
-      await auth.signInAnonymously();
-    }
-  } catch (e) {
-    debugPrint('Supabase init note: $e');
-  }
-
-  // Initialize offline-first local storage
-  final storageService = await LocalStorageService.init();
-  final apiService = ApiService();
+  // Both are local: nothing here waits on the network, so the app opens offline.
+  await CloudService.initialize();
+  final storage = await LocalStorageService.init();
+  final reminders = ReminderService();
+  await reminders.init();
 
   runApp(
     MultiProvider(
       providers: [
+        Provider.value(value: reminders),
         ChangeNotifierProvider(
-          create: (_) => ProtocolRepository(
-            storage: storageService,
-            api: apiService,
-          ),
+          create: (_) {
+            final repo = ProtocolRepository(storage: storage, cloud: CloudService());
+            // Reminders follow the data: any change rebuilds them.
+            Timer? widgets;
+            void follow() {
+              reminders.reschedule(repo);
+              widgets?.cancel();
+              widgets = Timer(const Duration(seconds: 1), () => syncWidgets(repo));
+            }
+
+            repo.addListener(follow);
+            follow();
+            return repo;
+          },
         ),
       ],
       child: const OmnyaApp(),
@@ -65,7 +61,6 @@ class OmnyaApp extends StatefulWidget {
 
 class _OmnyaAppState extends State<OmnyaApp> with WidgetsBindingObserver {
   bool _splashFinished = false;
-  bool _forceMainShell = false;
 
   @override
   void initState() {
@@ -82,46 +77,32 @@ class _OmnyaAppState extends State<OmnyaApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      context.read<ProtocolRepository>().syncWithCloud();
+      context.read<ProtocolRepository>().sync();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<ProtocolRepository>();
-    final hasCompletedOnboarding = repo.profile != null || _forceMainShell;
+    final onboarded = context.select<ProtocolRepository, bool>((r) => r.profile != null);
 
     return MaterialApp(
       title: 'Omnya',
       debugShowCheckedModeBanner: false,
       theme: OmnyaTheme.lightTheme,
-      darkTheme: OmnyaTheme.lightTheme,
       themeMode: ThemeMode.light,
+      // Hides the native glass tab bar while a sheet or dialog is up.
+      navigatorObservers: [CNTabBarRouteObserver()],
+      builder: (_, child) => AppLock(child: child!),
       home: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
+        transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
         child: !_splashFinished
-            ? OmnyaSplashScreen(
-                key: const ValueKey('splash'),
-                onFinished: () {
-                  setState(() => _splashFinished = true);
-                },
-              )
-            : (hasCompletedOnboarding
-                ? const MainShell(key: ValueKey('main_shell'))
-                : OnboardingQuizView(
-                    key: const ValueKey('onboarding_quiz'),
-                    onFinished: () {
-                      setState(() => _forceMainShell = true);
-                    },
-                  )),
+            ? OmnyaSplashScreen(key: const ValueKey('splash'), onFinished: () => setState(() => _splashFinished = true))
+            : onboarded
+            ? const MainShell(key: ValueKey('main_shell'))
+            : const OnboardingQuizView(key: ValueKey('onboarding')),
       ),
     );
   }

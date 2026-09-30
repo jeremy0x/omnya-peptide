@@ -1,319 +1,138 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:peptide_app/core/theme/omnya_theme.dart';
-import 'package:peptide_app/core/widgets/omnya_logo.dart';
-import 'package:peptide_app/data/services/local_storage_service.dart';
-import 'package:peptide_app/data/services/api_service.dart';
+import 'package:peptide_app/core/widgets/omnya_controls.dart';
+import 'package:peptide_app/core/widgets/tactile_button.dart';
 import 'package:peptide_app/data/repositories/protocol_repository.dart';
 import 'package:peptide_app/ui/navigation/main_shell.dart';
-import 'package:peptide_app/ui/features/today/today_view.dart';
-import 'package:peptide_app/ui/features/progress/progress_view.dart';
-import 'package:peptide_app/ui/features/stack/stack_view.dart';
-import 'package:peptide_app/ui/features/circle/circle_view.dart';
-import 'package:peptide_app/ui/onboarding/paywall_view.dart';
-import 'package:peptide_app/ui/features/photo_read/weekly_photo_read_view.dart';
 import 'package:peptide_app/ui/onboarding/onboarding_quiz_view.dart';
-import 'package:peptide_app/ui/splash/splash_view.dart';
-import 'package:hugeicons/hugeicons.dart';
-import 'package:peptide_app/data/models/circle_data.dart';
-import 'package:peptide_app/data/models/compound.dart';
-import 'package:peptide_app/data/models/dose_log.dart';
-import 'package:peptide_app/data/models/daily_check_in.dart';
-import 'package:peptide_app/data/models/user_profile.dart';
-
-class MockWidgetApiService extends ApiService {
-  @override
-  Future<bool> pushSync({
-    required String userId,
-    UserProfile? profile,
-    List<Compound>? compounds,
-    List<DoseLog>? doseLogs,
-    List<DailyCheckIn>? checkIns,
-  }) async => true;
-
-  @override
-  Future<CircleModel?> fetchUserCircle(String userId) async => null;
-
-  @override
-  Future<CircleModel?> createCircle({
-    required String name,
-    required String ownerUserId,
-    required String ownerDisplayName,
-    String? preferredInviteCode,
-  }) async => null;
-
-  @override
-  Future<CircleActionResult> joinCircle({
-    required String userId,
-    required String inviteCode,
-    required String displayName,
-  }) async => CircleActionResult.ok(
-        CircleModel(
-          id: 'test_circle',
-          inviteCode: inviteCode,
-          name: 'Test Circle',
-          members: [
-            CircleMemberModel(
-              userId: userId,
-              displayName: displayName,
-              avatarLetter: displayName.isNotEmpty ? displayName[0] : 'Y',
-              checkedInToday: true,
-              weeklyDosesLogged: 1,
-            ),
-          ],
-        ),
-      );
-
-  @override
-  Future<bool> updateCircleMemberProgress({
-    required String circleId,
-    required String userId,
-    required bool checkedInToday,
-    required int weeklyDosesLogged,
-  }) async => true;
-}
+import 'fakes.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   late ProtocolRepository repo;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    final storage = await LocalStorageService.init();
-    final api = MockWidgetApiService();
-    repo = ProtocolRepository(storage: storage, api: api);
-    // Let the unawaited syncWithCloud() → _syncCircleInternal() futures settle
-    await Future.delayed(const Duration(milliseconds: 100));
+    repo = await makeRepo(FakeCloud());
+    await settle();
   });
 
-  Widget buildTestWidget(Widget child) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider<ProtocolRepository>.value(value: repo),
-      ],
-      child: MaterialApp(
-        theme: OmnyaTheme.lightTheme,
-        home: child,
+  Future<void> pumpApp(WidgetTester tester, Widget home) async {
+    tester.view.physicalSize = const Size(1170, 2532); // iPhone-sized, 390 x 844 pt
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: repo,
+        child: MaterialApp(theme: OmnyaTheme.lightTheme, home: home),
       ),
     );
+    await tester.pumpAndSettle();
   }
 
-  testWidgets('OmnyaLogo and OmnyaLogoLoader render smoothly without errors', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: Column(
-            children: [
-              OmnyaLogo(size: 64),
-              OmnyaLogo(size: 48, monochrome: true),
-              OmnyaLogoLoader(size: 48, message: 'Syncing protocols...'),
-            ],
-          ),
-        ),
-      ),
+  // Lets toasts and the sync debounce run out so no timers outlive the test.
+  Future<void> drain(WidgetTester tester) => tester.pump(const Duration(seconds: 5));
+
+  VoidCallback? onPressed(WidgetTester tester, String label) =>
+      tester.widget<TactileButton>(find.widgetWithText(TactileButton, label)).onPressed;
+
+  testWidgets('first launch: every tab shows an honest empty state, nothing seeded', (tester) async {
+    await pumpApp(tester, const MainShell());
+    expect(find.text('Nothing to log yet'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Check in for a few days and your first pattern shows up here.'),
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('Check in for a few days and your first pattern shows up here.'), findsOneWidget);
 
-    expect(find.byType(OmnyaLogo), findsNWidgets(2));
-    expect(find.byType(OmnyaLogoLoader), findsOneWidget);
-    expect(find.text('Syncing protocols...'), findsOneWidget);
+    await tester.tap(find.text('Progress'));
+    await tester.pumpAndSettle();
+    expect(find.text('Before and after starts here'), findsOneWidget);
+    expect(find.text('Add your weight in the daily check-in to see your trend here.'), findsOneWidget);
 
-    // Pump frames to verify animation controller progresses without exceptions
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Stack'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing in your stack yet'), findsOneWidget);
+
+    await tester.tap(find.text('Circle'));
+    await tester.pumpAndSettle();
+    expect(find.text('Keep each other going'), findsOneWidget);
+    expect(find.textContaining('Mia'), findsNothing);
+    await drain(tester);
   });
 
-  testWidgets('MainShell renders floating liquid glass pill, tab items, and adjacent glass orb', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 2.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(buildTestWidget(const MainShell()));
+  testWidgets('onboarding: nothing is pre-selected and Continue waits for an answer', (tester) async {
+    await pumpApp(tester, const OnboardingQuizView());
+    expect(onPressed(tester, 'Continue'), isNull);
+    await tester.tap(find.text('Glow'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1200));
+    expect(onPressed(tester, 'Continue'), isNotNull);
 
-    // Verify all 4 tab items exist by key
-    expect(find.byKey(const Key('nav_tab_today')), findsOneWidget);
-    expect(find.byKey(const Key('nav_tab_progress')), findsOneWidget);
-    expect(find.byKey(const Key('nav_tab_stack')), findsOneWidget);
-    expect(find.byKey(const Key('nav_tab_circle')), findsOneWidget);
-
-    // Verify adjacent search glass orb
-    expect(find.bySemanticsLabel('Search peptides and protocols'), findsOneWidget);
-
-    // Tap on Progress tab uniquely by Key
-    await tester.tap(find.byKey(const Key('nav_tab_progress')));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Not sure yet'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    // Verify Progress screen loaded in IndexedStack
-    expect(find.text('Outcomes & reads', skipOffstage: false), findsOneWidget);
-
-    // Tap on adjacent glass orb button
-    await tester.tap(find.byKey(const Key('nav_orb_button')));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('First month'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    // Verify Quick Protocol Search sheet opened
-    expect(find.text('Protocol Library & Quick Log'), findsOneWidget);
-    expect(find.text('Retatrutide'), findsOneWidget);
-    expect(find.text('GHK-Cu'), findsOneWidget);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('No'), findsOneWidget, reason: 'spec lists yes, no, irregular, on birth control');
+    await drain(tester);
   });
 
-  testWidgets('TodayView renders Next Dose card and 3-tap check-in', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 2.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
+  testWidgets('add a compound, log it, see the first-dose moment, then undo', (tester) async {
+    await pumpApp(tester, const MainShell());
 
-    await tester.pumpWidget(buildTestWidget(const TodayView()));
+    await tester.tap(find.text('Add a compound'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Retatrutide'));
+    await tester.enterText(
+      find.descendant(of: find.widgetWithText(OmnyaField, 'Dose'), matching: find.byType(TextField)),
+      '2',
+    );
+    await tester.ensureVisible(find.text('Weekly'));
+    await tester.tap(find.text('Weekly'));
+    await tester.ensureVisible(find.text('Add to stack'));
+    await tester.tap(find.text('Add to stack'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reta, 2 mg'), findsOneWidget);
+    expect(find.text('Left thigh · due today'), findsOneWidget);
+
+    await tester.tap(find.text('Log it'));
+    await tester.pumpAndSettle();
+    expect(find.text('Day 1.'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    // Not pumpAndSettle: that would wait out the toast's countdown and it would be gone.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.pump(const Duration(milliseconds: 600));
 
-    expect(find.text('Dose'), findsOneWidget);
+    expect(find.textContaining('Logged Reta, 2 mg'), findsOneWidget);
+    expect(repo.doseLogs.length, 1);
+    expect(repo.compounds.single.nextSite, 'Right thigh');
+
+    await tester.tap(find.text('Undo').first);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(repo.doseLogs, isEmpty);
+    expect(repo.compounds.single.nextSite, 'Left thigh');
     expect(find.text('Log it'), findsOneWidget);
-    expect(find.text('Daily check-in'), findsOneWidget);
-    expect(find.text('This week'), findsOneWidget);
+    await drain(tester);
   });
 
-  testWidgets('StackView renders compound inventory cards and monthly spend', (tester) async {
-    await tester.pumpWidget(buildTestWidget(const StackView()));
+  testWidgets('daily check-in saves and shows a summary', (tester) async {
+    await pumpApp(tester, const MainShell());
+    expect(onPressed(tester, 'Save check-in'), isNull);
+    await tester.tap(find.bySemanticsLabel('Energy 4 of 5'));
+    await tester.tap(find.bySemanticsLabel('Appetite 2 of 5'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Stack'), findsOneWidget);
-    expect(find.text('This month'), findsOneWidget);
-    expect(find.text('Retatrutide'), findsOneWidget);
-    expect(find.text('GHK-Cu'), findsOneWidget);
-    expect(find.text('KLOW'), findsOneWidget);
-  });
-
-  testWidgets('CircleView renders member avatars and consistency list', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 2.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(buildTestWidget(const CircleView()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Circle'), findsOneWidget);
-    expect(find.text('Consistency this week'), findsOneWidget);
-    expect(find.text('Mia'), findsWidgets);
-
-    // Test Join Circle mobile bottom sheet
-    await tester.tap(find.text('Join with code'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Join Circle'), findsWidgets);
-    expect(find.text('• • • • •'), findsOneWidget);
-    expect(find.text('Your Name in Circle'), findsOneWidget);
-
-    // Close join sheet
-    Navigator.of(tester.element(find.text('• • • • •'))).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    // Test Invite to Circle mobile bottom sheet
-    await tester.tap(find.text('Share invite link'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Invite to Circle'), findsOneWidget);
-    expect(find.text('Copy Invite Code'), findsOneWidget);
-
-    // Close invite sheet
-    Navigator.of(tester.element(find.text('Invite to Circle'))).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-  });
-
-  testWidgets('ProgressView renders before/after slider and cycle band', (tester) async {
-    await tester.pumpWidget(buildTestWidget(const ProgressView()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Progress'), findsOneWidget);
-    expect(find.text('Weight, with cycle band'), findsOneWidget);
-  });
-
-  testWidgets('PaywallView renders balanced tier cards and Pro features', (tester) async {
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(buildTestWidget(const PaywallView()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Monthly'), findsOneWidget);
-    expect(find.text('Yearly'), findsOneWidget);
-    expect(find.text('Lifetime'), findsOneWidget);
-    expect(find.text('BEST VALUE'), findsOneWidget);
-    expect(find.text('Start 7-day free trial'), findsOneWidget);
-  });
-
-  testWidgets('WeeklyPhotoReadView renders comparison and simplified alignment camera', (tester) async {
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(buildTestWidget(const WeeklyPhotoReadView()));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Your week in photos'), findsOneWidget);
-    expect(find.text('Aug 25'), findsOneWidget);
-    expect(find.text('Sep 1'), findsOneWidget);
-  });
-
-  testWidgets('OnboardingQuizView renders HugeIcon back arrow and integrated progress header on step 1', (tester) async {
-    tester.view.physicalSize = const Size(1200, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(buildTestWidget(OnboardingQuizView(onFinished: () {})));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('1 of 6'), findsOneWidget);
-    expect(find.text('Skip'), findsOneWidget);
-    expect(find.text('What are you here for?'), findsOneWidget);
-
-    final hugeIcons = tester.widgetList<HugeIcon>(find.byType(HugeIcon));
-    expect(hugeIcons.any((icon) => icon.icon == HugeIcons.strokeRoundedArrowLeft01), isTrue);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-  });
-
-  testWidgets('OmnyaSplashScreen renders animated brand circles and completes transition', (tester) async {
-    bool finished = false;
-    await tester.pumpWidget(buildTestWidget(OmnyaSplashScreen(onFinished: () => finished = true)));
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Omnya'), findsOneWidget);
-    expect(find.text('PROTOCOL INTELLIGENCE'), findsNothing);
-
-    // Fast-forward past splash duration
-    await tester.pump(const Duration(milliseconds: 2600));
-    expect(finished, isTrue);
+    await tester.ensureVisible(find.text('Save check-in'));
+    await tester.tap(find.text('Save check-in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Energy 4 · Appetite 2'), findsOneWidget);
+    expect(repo.checkIns.single.energyLevel, 4);
+    await drain(tester);
   });
 }
-

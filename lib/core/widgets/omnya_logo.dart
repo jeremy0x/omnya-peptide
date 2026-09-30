@@ -9,12 +9,7 @@ class OmnyaLogo extends StatelessWidget {
   final bool monochrome;
   final Color? tintColor;
 
-  const OmnyaLogo({
-    super.key,
-    this.size = 48.0,
-    this.monochrome = false,
-    this.tintColor,
-  });
+  const OmnyaLogo({super.key, this.size = 48.0, this.monochrome = false, this.tintColor});
 
   @override
   Widget build(BuildContext context) {
@@ -22,10 +17,7 @@ class OmnyaLogo extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _OmnyaLogoPainter(
-          monochrome: monochrome,
-          tintColor: tintColor,
-        ),
+        painter: _OmnyaLogoPainter(monochrome: monochrome, tintColor: tintColor),
       ),
     );
   }
@@ -35,10 +27,7 @@ class _OmnyaLogoPainter extends CustomPainter {
   final bool monochrome;
   final Color? tintColor;
 
-  _OmnyaLogoPainter({
-    required this.monochrome,
-    this.tintColor,
-  });
+  _OmnyaLogoPainter({required this.monochrome, this.tintColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -49,18 +38,10 @@ class _OmnyaLogoPainter extends CustomPainter {
     final oy = (h - s) / 2;
 
     // Palette colors
-    final plumColor = monochrome
-        ? (tintColor ?? OmnyaColors.plum)
-        : const Color(0xFF4B1D3F);
-    final sandColor = monochrome
-        ? (tintColor ?? OmnyaColors.taupe).withValues(alpha: 0.6)
-        : const Color(0xFFEADFCF);
-    final taupeColor = monochrome
-        ? (tintColor ?? OmnyaColors.taupe).withValues(alpha: 0.8)
-        : const Color(0xFFB9A995);
-    final dotColor = monochrome
-        ? Colors.transparent
-        : const Color(0xFFF6F1E8);
+    final plumColor = monochrome ? (tintColor ?? OmnyaColors.plum) : const Color(0xFF4B1D3F);
+    final sandColor = monochrome ? (tintColor ?? OmnyaColors.taupe).withValues(alpha: 0.6) : const Color(0xFFEADFCF);
+    final taupeColor = monochrome ? (tintColor ?? OmnyaColors.taupe).withValues(alpha: 0.8) : const Color(0xFFB9A995);
+    final dotColor = monochrome ? Colors.transparent : const Color(0xFFF6F1E8);
 
     final plumPaint = Paint()
       ..color = plumColor
@@ -110,40 +91,32 @@ class _OmnyaLogoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OmnyaLogoPainter oldDelegate) {
-    return oldDelegate.monochrome != monochrome ||
-        oldDelegate.tintColor != tintColor;
+    return oldDelegate.monochrome != monochrome || oldDelegate.tintColor != tintColor;
   }
 }
 
-/// Mesmerizing, smooth ambient loading indicator animating the Omnya logo circles.
-/// The taupe circle orbits smoothly, the sand circle breathes, and the dot pulses.
+/// The app's loading indicator: the logo circles in motion. The taupe circle
+/// orbits, the sand circle breathes and the dot pulses. Use [onDark] on plum or
+/// charcoal surfaces so the main circle stays visible.
 class OmnyaLogoLoader extends StatefulWidget {
   final double size;
   final String? message;
   final bool compact;
+  final bool onDark;
 
-  const OmnyaLogoLoader({
-    super.key,
-    this.size = 56.0,
-    this.message,
-    this.compact = false,
-  });
+  const OmnyaLogoLoader({super.key, this.size = 56.0, this.message, this.compact = false, this.onDark = false});
 
   @override
   State<OmnyaLogoLoader> createState() => _OmnyaLogoLoaderState();
 }
 
-class _OmnyaLogoLoaderState extends State<OmnyaLogoLoader>
-    with SingleTickerProviderStateMixin {
+class _OmnyaLogoLoaderState extends State<OmnyaLogoLoader> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat();
   }
 
   @override
@@ -154,19 +127,17 @@ class _OmnyaLogoLoaderState extends State<OmnyaLogoLoader>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final loaderWidget = AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: Size(widget.size, widget.size),
-          painter: _OmnyaLogoAnimatedPainter(
-            progress: _controller.value,
-            isDark: isDark,
-          ),
-        );
-      },
+    final loaderWidget = Semantics(
+      label: 'Loading',
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return CustomPaint(
+            size: Size(widget.size, widget.size),
+            painter: _OmnyaLogoAnimatedPainter(progress: _controller.value, onDark: widget.onDark),
+          );
+        },
+      ),
     );
 
     if (widget.compact || widget.message == null) {
@@ -185,7 +156,7 @@ class _OmnyaLogoLoaderState extends State<OmnyaLogoLoader>
             fontSize: 13,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.3,
-            color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalLight,
+            color: widget.onDark ? OmnyaColors.sandMuted : OmnyaColors.charcoalLight,
           ),
         ),
       ],
@@ -195,12 +166,9 @@ class _OmnyaLogoLoaderState extends State<OmnyaLogoLoader>
 
 class _OmnyaLogoAnimatedPainter extends CustomPainter {
   final double progress; // 0.0 -> 1.0
-  final bool isDark;
+  final bool onDark;
 
-  _OmnyaLogoAnimatedPainter({
-    required this.progress,
-    required this.isDark,
-  });
+  _OmnyaLogoAnimatedPainter({required this.progress, required this.onDark});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -229,10 +197,11 @@ class _OmnyaLogoAnimatedPainter extends CustomPainter {
     // Dot glow pulsation
     final dotPulse = 1.0 + 0.25 * math.cos(t * 2);
 
-    final plumColor = isDark ? const Color(0xFF6B2A56) : const Color(0xFF4B1D3F);
-    final sandColor = isDark ? const Color(0xFFC5B49F) : const Color(0xFFEADFCF);
-    final taupeColor = isDark ? const Color(0xFF9E8A78) : const Color(0xFFB9A995);
-    final dotColor = isDark ? const Color(0xFFFBF8F3) : const Color(0xFFF6F1E8);
+    // On dark surfaces the main circle turns cream and its dot takes the surface colour.
+    final plumColor = onDark ? OmnyaColors.cream : const Color(0xFF4B1D3F);
+    final sandColor = onDark ? const Color(0xFFD9C9B8) : const Color(0xFFEADFCF);
+    final taupeColor = onDark ? OmnyaColors.taupe : const Color(0xFFB9A995);
+    final dotColor = onDark ? OmnyaColors.plum : const Color(0xFFF6F1E8);
 
     // 1. Plum circle
     final pc = Offset(ox + 0.557 * s, oy + 0.460 * s + plumOffsetY);
@@ -285,6 +254,26 @@ class _OmnyaLogoAnimatedPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OmnyaLogoAnimatedPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.isDark != isDark;
+    return oldDelegate.progress != progress || oldDelegate.onDark != onDark;
+  }
+}
+
+/// Runs [task] behind a full-screen loader that blocks taps until it finishes.
+Future<T> withLoadingOverlay<T>(BuildContext context, Future<T> Function() task, {String? message}) async {
+  final entry = OverlayEntry(
+    builder: (_) => Positioned.fill(
+      child: AbsorbPointer(
+        child: ColoredBox(
+          color: OmnyaColors.sand.withValues(alpha: 0.88),
+          child: Center(child: OmnyaLogoLoader(size: 72, message: message)),
+        ),
+      ),
+    ),
+  );
+  Overlay.of(context, rootOverlay: true).insert(entry);
+  try {
+    return await task();
+  } finally {
+    entry.remove();
   }
 }

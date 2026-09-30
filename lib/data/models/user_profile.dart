@@ -1,78 +1,93 @@
+/// Onboarding answers. Nothing here is prefilled: every field is her own answer.
 class UserProfile {
-  final String id;
   final List<String> goals;
   final List<String> selectedCompounds;
-  final String experienceLevel;
-  final bool hasCycle;
+  final String? experienceLevel;
+
+  /// 'yes', 'irregular', 'birth_control' or 'no'.
+  final String? cycleStatus;
+
+  /// Her 90-day goal in her own words, shown back at day 30 and day 90.
   final String day90GoalText;
-  final String photoTrackingType; // 'face', 'body', 'both'
+  final String? photoTrackingType; // 'face', 'body' or 'both'
   final bool sundayPhotoPromptEnabled;
-  final bool isPro;
+
+  /// Local reminders on dose days, at [reminderMinutes] after midnight.
+  final bool remindersOn;
+  final int reminderMinutes;
+
+  /// Asks for Face ID before the app opens.
+  final bool lockWithFaceId;
   final DateTime createdAt;
 
-  UserProfile({
-    required this.id,
-    required this.goals,
-    required this.selectedCompounds,
-    required this.experienceLevel,
-    required this.hasCycle,
-    required this.day90GoalText,
-    required this.photoTrackingType,
-    required this.sundayPhotoPromptEnabled,
-    this.isPro = false,
+  const UserProfile({
+    this.goals = const [],
+    this.selectedCompounds = const [],
+    this.experienceLevel,
+    this.cycleStatus,
+    this.day90GoalText = '',
+    this.photoTrackingType,
+    this.sundayPhotoPromptEnabled = true,
+    this.remindersOn = true,
+    this.reminderMinutes = 9 * 60,
+    this.lockWithFaceId = false,
     required this.createdAt,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'goals': goals,
-        'selectedCompounds': selectedCompounds,
-        'experienceLevel': experienceLevel,
-        'hasCycle': hasCycle,
-        'day90GoalText': day90GoalText,
-        'photoTrackingType': photoTrackingType,
-        'sundayPhotoPromptEnabled': sundayPhotoPromptEnabled,
-        'isPro': isPro,
-        'createdAt': createdAt.toIso8601String(),
-      };
+  /// Cycle features stay on unless she said she doesn't get a period.
+  bool get hasCycle => cycleStatus != null && cycleStatus != 'no';
 
+  Map<String, dynamic> toJson() => {
+    'goals': goals,
+    'selectedCompounds': selectedCompounds,
+    'experienceLevel': experienceLevel,
+    'cycleStatus': cycleStatus,
+    'day90GoalText': day90GoalText,
+    'photoTrackingType': photoTrackingType,
+    'sundayPhotoPromptEnabled': sundayPhotoPromptEnabled,
+    'remindersOn': remindersOn,
+    'reminderMinutes': reminderMinutes,
+    'lockWithFaceId': lockWithFaceId,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  /// Also reads older builds, which stored a `hasCycle` flag instead of the answer.
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        id: json['id'] as String,
-        goals: List<String>.from(json['goals'] as List),
-        selectedCompounds: List<String>.from(json['selectedCompounds'] as List),
-        experienceLevel: json['experienceLevel'] as String,
-        hasCycle: json['hasCycle'] as bool,
-        day90GoalText: json['day90GoalText'] as String,
-        photoTrackingType: json['photoTrackingType'] as String,
-        sundayPhotoPromptEnabled: json['sundayPhotoPromptEnabled'] as bool,
-        isPro: json['isPro'] as bool? ?? false,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-      );
+    goals: List<String>.from(json['goals'] as List? ?? const []),
+    selectedCompounds: List<String>.from(json['selectedCompounds'] as List? ?? const []),
+    experienceLevel: json['experienceLevel'] as String?,
+    cycleStatus:
+        json['cycleStatus'] as String? ??
+        switch (json['hasCycle']) {
+          true => 'yes',
+          false => 'no',
+          _ => null,
+        },
+    day90GoalText: json['day90GoalText'] as String? ?? '',
+    photoTrackingType: json['photoTrackingType'] as String?,
+    sundayPhotoPromptEnabled: json['sundayPhotoPromptEnabled'] as bool? ?? true,
+    remindersOn: json['remindersOn'] as bool? ?? true,
+    reminderMinutes: json['reminderMinutes'] as int? ?? 9 * 60,
+    lockWithFaceId: json['lockWithFaceId'] as bool? ?? false,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+  );
 
   UserProfile copyWith({
-    String? id,
-    List<String>? goals,
-    List<String>? selectedCompounds,
-    String? experienceLevel,
-    bool? hasCycle,
-    String? day90GoalText,
-    String? photoTrackingType,
     bool? sundayPhotoPromptEnabled,
-    bool? isPro,
-    DateTime? createdAt,
-  }) {
-    return UserProfile(
-      id: id ?? this.id,
-      goals: goals ?? this.goals,
-      selectedCompounds: selectedCompounds ?? this.selectedCompounds,
-      experienceLevel: experienceLevel ?? this.experienceLevel,
-      hasCycle: hasCycle ?? this.hasCycle,
-      day90GoalText: day90GoalText ?? this.day90GoalText,
-      photoTrackingType: photoTrackingType ?? this.photoTrackingType,
-      sundayPhotoPromptEnabled:
-          sundayPhotoPromptEnabled ?? this.sundayPhotoPromptEnabled,
-      isPro: isPro ?? this.isPro,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
+    bool? remindersOn,
+    int? reminderMinutes,
+    bool? lockWithFaceId,
+  }) => UserProfile(
+    goals: goals,
+    selectedCompounds: selectedCompounds,
+    experienceLevel: experienceLevel,
+    cycleStatus: cycleStatus,
+    day90GoalText: day90GoalText,
+    photoTrackingType: photoTrackingType,
+    sundayPhotoPromptEnabled: sundayPhotoPromptEnabled ?? this.sundayPhotoPromptEnabled,
+    remindersOn: remindersOn ?? this.remindersOn,
+    reminderMinutes: reminderMinutes ?? this.reminderMinutes,
+    lockWithFaceId: lockWithFaceId ?? this.lockWithFaceId,
+    createdAt: createdAt,
+  );
 }

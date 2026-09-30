@@ -1,257 +1,189 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import '../../../core/constants/compound_directory.dart';
 import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
-import '../../../core/widgets/liquid_glass_container.dart';
+import '../../../core/widgets/omnya_card.dart';
+import '../../../core/widgets/omnya_controls.dart';
 import '../../../core/widgets/tactile_button.dart';
-import '../../../data/repositories/protocol_repository.dart';
 import '../../../data/models/compound.dart';
+import '../../../data/models/dose_log.dart';
+import '../../../data/repositories/protocol_repository.dart';
+import '../../../domain/schedule.dart';
 import '../../core/omnya_header.dart';
 import 'calculator_modal.dart';
+import 'compound_editor_sheet.dart';
 
+/// Spec page 2: every compound as a card with runout, cadence and cost.
 class StackView extends StatelessWidget {
   const StackView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<ProtocolRepository>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final monthlySpend = repo.calculateMonthlySpend();
+    final compounds = repo.compounds;
+    final costed = compounds.where((c) => c.monthlyCost != null).toList();
+    final now = DateTime.now();
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 120),
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 120),
+      children: [
+        OmnyaHeader(
+          title: 'Stack',
+          subtitle: 'Compounds and vials',
+          trailing: OmnyaIconButton(
+            icon: HugeIcons.strokeRoundedAdd01,
+            tooltip: 'Add a compound',
+            onPressed: () => showCompoundEditor(context),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (costed.isNotEmpty) ...[_SpendCard(costed: costed), const SizedBox(height: 14)],
+              if (compounds.isEmpty)
+                OmnyaCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+                  child: OmnyaEmptyState(
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedLayers01, color: OmnyaColors.taupeDark, size: 28),
+                    title: 'Nothing in your stack yet',
+                    body: 'Add what you take to track doses, sites and when a vial runs out.',
+                    action: TactileButton(label: 'Add a compound', onPressed: () => showCompoundEditor(context)),
+                  ),
+                )
+              else
+                for (final c in compounds) ...[
+                  _CompoundCard(compound: c, logs: repo.doseLogs, now: now),
+                  const SizedBox(height: 12),
+                ],
+              const SizedBox(height: 4),
+              TactileButton(
+                label: 'Mixing calculator',
+                variant: TactileButtonVariant.outline,
+                width: double.infinity,
+                leading: const HugeIcon(icon: HugeIcons.strokeRoundedCalculator, color: OmnyaColors.plum, size: 18),
+                onPressed: () => showCalculator(context),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SpendCard extends StatelessWidget {
+  final List<Compound> costed;
+  const _SpendCard({required this.costed});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = costed.fold<double>(0, (sum, c) => sum + c.monthlyCost!);
+    final first = costed.first;
+    return OmnyaCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                OmnyaHeader(
-                  title: 'Stack',
-                  subtitle: 'Compounds & inventory',
-                  trailing: Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF282523) : OmnyaColors.cream,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isDark ? const Color(0xFF3E3935) : OmnyaColors.taupe.withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => const CalculatorModal(),
-                        );
-                      },
-                      icon: const HugeIcon(
-                        icon: HugeIcons.strokeRoundedCalculator,
-                        color: OmnyaColors.plum,
-                        size: 20,
-                      ),
-                      tooltip: 'Reconstitution calculator',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // 1. Monthly Spend & Cost Banner (Spec Page 2: $312 this month, $4.10 per reta dose)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: LiquidGlassContainer(
-                    borderRadius: 24,
-                    padding: const EdgeInsets.all(22),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'This month',
-                              style: OmnyaTypography.tag(color: OmnyaColors.taupeDark),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '\$${monthlySpend.toStringAsFixed(0)}',
-                              style: OmnyaTypography.statNumber(
-                                color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2E2B29) : OmnyaColors.sand,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '\$4.10',
-                                style: OmnyaTypography.label(
-                                  color: isDark ? OmnyaColors.plumSoft : OmnyaColors.plum,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                'per reta dose',
-                                style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 2. Compound Cards (Spec Page 2 & 4: Reta, GHK-Cu, KLOW with nicknames and badges)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: repo.compounds.map((compound) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: LiquidGlassContainer(
-                          borderRadius: 22,
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: compound.category.tagColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        compound.name,
-                                        style: OmnyaTypography.headline(
-                                          color: isDark ? OmnyaColors.cream : OmnyaColors.charcoal,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  // Runout badge (Spec: "runs out Thu", "22 doses left", "cycle: day 12 of 30")
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF2E2B29) : OmnyaColors.sand,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      _getCompoundRunoutLabel(compound),
-                                      style: OmnyaTypography.bodySmall(
-                                        color: isDark ? OmnyaColors.plumSoft : OmnyaColors.plum,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              
-                              // Nickname (Spec Page 4: "Dream bod, here we come.", "Face card will be lethal.")
-                              Text(
-                                '"${compound.nickname}"',
-                                style: OmnyaTypography.bodyMedium(
-                                  color: isDark ? OmnyaColors.taupe : OmnyaColors.charcoalMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-
-                              // Metadata Row
-                              Wrap(
-                                spacing: 14,
-                                runSpacing: 4,
-                                children: [
-                                  Text(
-                                    'Dose: ${compound.doseMg.toStringAsFixed(1)} mg',
-                                    style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
-                                  ),
-                                  Text(
-                                    'Cadence: every ${compound.frequencyDays}d',
-                                    style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
-                                  ),
-                                  Text(
-                                    'Site: ${compound.injectionSite}',
-                                    style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Calculator Shortcut CTA
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: TactileButton(
-                    label: 'Open dilution calculator',
-                    variant: TactileButtonVariant.outline,
-                    width: double.infinity,
-                    leading: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedCalculator,
-                      color: OmnyaColors.plum,
-                      size: 18,
-                    ),
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (_) => const CalculatorModal(),
-                      );
-                    },
-                  ),
-                ),
+                Text('Per month, at your schedule', style: OmnyaTypography.tag(color: OmnyaColors.taupeDark)),
+                const SizedBox(height: 4),
+                Text('\$${total.toStringAsFixed(0)}', style: OmnyaTypography.statNumber()),
               ],
             ),
           ),
-        ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '\$${first.costPerDose!.toStringAsFixed(2)}',
+                style: OmnyaTypography.label(color: OmnyaColors.plum, weight: FontWeight.w600),
+              ),
+              Text('per ${CompoundDirectory.shortName(first.name)} dose', style: OmnyaTypography.bodySmall()),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
 
-  String _getCompoundRunoutLabel(Compound compound) {
-    if (compound.name.toLowerCase().contains('reta')) {
-      return 'runs out Thu';
-    } else if (compound.name.toLowerCase().contains('ghk')) {
-      return '22 doses left';
-    } else if (compound.name.toLowerCase().contains('klow')) {
-      return 'cycle: day 12 of 30';
-    }
-    return '${compound.dosesLeft} doses left';
+class _CompoundCard extends StatelessWidget {
+  final Compound compound;
+  final List<DoseLog> logs;
+  final DateTime now;
+  const _CompoundCard({required this.compound, required this.logs, required this.now});
+
+  String? get _badge {
+    final c = compound;
+    if (!c.isConfigured) return 'Needs dose and schedule';
+    if (c.dosesLeft == 0) return 'Out of doses';
+    final runout = runoutDay(c, logs);
+    if (runout != null && daysBetween(now, runout) <= 6) return 'Runs out ${relativeDay(runout, now)}';
+    if (c.dosesLeft != null) return '${c.dosesLeft} ${c.dosesLeft == 1 ? 'dose' : 'doses'} left';
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = compound;
+    final badge = _badge;
+    final day = daysBetween(c.startDate, now) + 1;
+    return OmnyaCard(
+      onTap: () => showCompoundEditor(context, compound: c),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 9, right: 10),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: c.category.tagColor, shape: BoxShape.circle),
+                ),
+              ),
+              Expanded(child: Text(c.name, style: OmnyaTypography.headline())),
+              if (badge != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 8, top: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: OmnyaColors.sand,
+                    borderRadius: BorderRadius.circular(OmnyaRadius.chip),
+                  ),
+                  child: Text(badge, style: OmnyaTypography.bodySmall(color: OmnyaColors.plum)),
+                ),
+            ],
+          ),
+          if (c.nickname.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 18),
+              child: Text(c.nickname, style: OmnyaTypography.bodyMedium()),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 18),
+            child: Text(
+              c.isConfigured
+                  ? '${nextDoseLabel(c, logs)} · ${everyLabel(c.frequencyDays)}'
+                        '${c.isInjected ? ' · next ${c.nextSite.toLowerCase()}' : ''}'
+                        '${day > 0 ? ' · day $day' : ''}'
+                  : 'Tap to add your dose and schedule',
+              style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

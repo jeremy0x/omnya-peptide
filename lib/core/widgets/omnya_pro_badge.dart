@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-/// Clean editorial PRO badge matching Omnya's warm minimal brand aesthetic.
+/// The Pro badge: light gold, used in the header and on the plans screen.
 class OmnyaProBadge extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -18,10 +17,11 @@ class OmnyaProBadge extends StatelessWidget {
       ),
       child: Text(
         'PRO',
-        style: GoogleFonts.instrumentSans(
+        style: const TextStyle(
+          fontFamily: 'InstrumentSans',
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: const Color(0xFF6E5014), // refined deep warm gold/bronze
+          color: Color(0xFF6E5014), // refined deep warm gold/bronze
           letterSpacing: 0.8,
         ),
       ),
