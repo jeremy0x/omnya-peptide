@@ -149,8 +149,8 @@ class _MainShellState extends State<MainShell> with RouteAware {
           label: label,
           excludeSemantics: true,
           child: CNButton.icon(
-            // Recreated when its state flips; the native button can keep a stale icon otherwise.
-            key: ValueKey('$icon$selected'),
+            // Keyed by icon only: the plugin swaps the image in place, so the native view is never rebuilt.
+            key: ValueKey(icon),
             imageAsset: CNImageAsset(
               'assets/icons/$icon${selected ? '_active' : ''}.svg',
               size: 26,
