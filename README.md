@@ -44,11 +44,19 @@ assets/          fonts (Fraunces, Instrument Sans) and logo
 3. Run `supabase/schema.sql` once in the SQL editor. It resets the app tables, so run it again only before launch.
 4. Run the app with `flutter run`.
 
-The Supabase URL and publishable key are in `lib/data/services/cloud_service.dart`. The publishable key is meant to ship inside apps; access is enforced by the database rules.
+The Supabase URL and publishable key are passed as Dart compile-time defines. The publishable key is meant to ship inside apps; access is enforced by the database rules.
 
 ## Building for release
 
-- **Android**: add `android/key.properties` with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then run `flutter build appbundle` (or `flutter build apk`). Without that file, release builds are signed with the debug key, which the Play Store rejects. Builds include arm64 only.
+- **Android**: add `android/key.properties` with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then pass the Supabase values to the release build:
+
+  ```bash
+  flutter build apk --release \
+    --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+    --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+  ```
+
+  Use the same `--dart-define` flags with `flutter build appbundle` for a Play Store bundle. Without `key.properties`, release builds are signed with the debug key, which the Play Store rejects. Builds include arm64 only.
 - **iOS**: set your team in Xcode. In the Apple Developer portal, turn on HealthKit and App Groups (`group.com.omnya.peptide`) for `com.omnya.peptide.peptideApp`, and App Groups for `com.omnya.peptide.peptideApp.OmnyaWidget`. Then run `flutter build ipa`.
 
 ## Checks

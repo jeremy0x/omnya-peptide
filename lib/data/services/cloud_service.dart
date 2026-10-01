@@ -20,10 +20,13 @@ class CloudException implements Exception {
 /// Backup and circles, straight to Supabase. Row level security (supabase/schema.sql)
 /// is what keeps each person's rows private; there is no server in between.
 class CloudService {
-  static const _url = 'https://aeddscoqzqwnjwokflnz.supabase.co';
+  static const _url = String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://aeddscoqzqwnjwokflnz.supabase.co');
 
   // A publishable key is meant to ship inside apps. It grants nothing on its own.
-  static const _publishableKey = 'sb_publishable_Ngbc6wpe22CGbsGD9-bXBw_rJS0rSUm';
+  static const _publishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_Ngbc6wpe22CGbsGD9-bXBw_rJS0rSUm',
+  );
 
   static Future<void> initialize() => Supabase.initialize(url: _url, publishableKey: _publishableKey);
 
