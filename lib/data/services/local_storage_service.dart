@@ -25,6 +25,7 @@ class LocalStorageService {
   static const _pendingSyncKey = 'omnya_pending_sync';
   static const _lastSyncKey = 'omnya_last_sync_timestamp';
   static const _milestonesKey = 'omnya_milestones';
+  static const _isProKey = 'omnya_is_pro';
 
   final SharedPreferences _prefs;
 
@@ -136,6 +137,9 @@ class LocalStorageService {
   Set<String> get celebratedMilestones => (_prefs.getStringList(_milestonesKey) ?? const []).toSet();
   Future<void> markMilestone(String name) =>
       _prefs.setStringList(_milestonesKey, {...celebratedMilestones, name}.toList());
+
+  bool getIsPro() => _prefs.getBool(_isProKey) ?? false;
+  Future<void> saveIsPro(bool v) => _prefs.setBool(_isProKey, v);
 
   /// Wipes everything the app stored on this device, photos included.
   Future<void> clearAll() async {

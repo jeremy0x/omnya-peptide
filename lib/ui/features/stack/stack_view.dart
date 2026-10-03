@@ -6,12 +6,15 @@ import '../../../core/theme/omnya_colors.dart';
 import '../../../core/theme/omnya_typography.dart';
 import '../../../core/widgets/omnya_card.dart';
 import '../../../core/widgets/omnya_controls.dart';
+import '../../../core/widgets/slide_page_route.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/models/compound.dart';
 import '../../../data/models/dose_log.dart';
 import '../../../data/repositories/protocol_repository.dart';
+import '../../../data/services/subscription_service.dart';
 import '../../../domain/schedule.dart';
 import '../../core/omnya_header.dart';
+import '../../onboarding/paywall_view.dart';
 import 'calculator_modal.dart';
 import 'compound_editor_sheet.dart';
 
@@ -35,7 +38,14 @@ class StackView extends StatelessWidget {
           trailing: OmnyaIconButton(
             icon: HugeIcons.strokeRoundedAdd01,
             tooltip: 'Add a compound',
-            onPressed: () => showCompoundEditor(context),
+            onPressed: () {
+              final isPro = context.read<SubscriptionService>().isPro;
+              if (!isPro && repo.compounds.length >= 2) {
+                Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+              } else {
+                showCompoundEditor(context);
+              }
+            },
           ),
         ),
         Padding(

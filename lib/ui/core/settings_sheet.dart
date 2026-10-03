@@ -19,6 +19,7 @@ import '../../data/services/cloud_service.dart';
 import '../../data/services/doctor_report.dart';
 import '../../data/services/reminder_service.dart';
 import '../../data/services/shotsy_import.dart';
+import '../../data/services/subscription_service.dart';
 import '../onboarding/onboarding_quiz_view.dart';
 import '../onboarding/paywall_view.dart';
 import 'app_lock.dart';
@@ -117,14 +118,16 @@ void showSettingsSheet(BuildContext context) {
             Navigator.push(context, SlidePageRoute(page: OnboardingQuizView(onFinished: () => Navigator.pop(context))));
           },
         ),
-        _Row(
-          icon: HugeIcons.strokeRoundedHonourStar,
-          title: 'Omnya Pro',
-          subtitle: 'See what Pro includes',
-          onTap: () {
-            Navigator.pop(sheet);
-            Navigator.push(context, SlidePageRoute(page: const PaywallView()));
-          },
+        Consumer<SubscriptionService>(
+          builder: (ctx, sub, _) => _Row(
+            icon: HugeIcons.strokeRoundedHonourStar,
+            title: sub.isPro ? 'Omnya Pro (Active)' : 'Omnya Pro',
+            subtitle: sub.isPro ? 'Your Pro subscription is active' : 'See what Pro includes',
+            onTap: () {
+              Navigator.pop(sheet);
+              Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+            },
+          ),
         ),
         ListenableBuilder(
           listenable: repo,

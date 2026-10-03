@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:provider/provider.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../core/constants/app_copy.dart';
 import '../../core/theme/omnya_colors.dart';
 import '../../core/theme/omnya_typography.dart';
 import '../../core/widgets/omnya_card.dart';
 import '../../core/widgets/omnya_pro_badge.dart';
+import '../../core/widgets/omnya_toast.dart';
 import '../../core/widgets/tactile_button.dart';
+import '../../data/services/subscription_service.dart';
 
-/// Plans from spec page 8. Purchases are switched off until in-app purchase is
-/// connected, so nothing here can charge her or unlock anything.
+/// Plans from spec page 8. Backed by RevenueCat StoreKit subscriptions.
 class PaywallView extends StatefulWidget {
   const PaywallView({super.key});
 
@@ -18,12 +23,6 @@ class PaywallView extends StatefulWidget {
 
 class _PaywallViewState extends State<PaywallView> {
   int _plan = 1; // yearly is shown first (spec)
-
-  static const _plans = [
-    (name: 'Monthly', price: r'$9.99', note: 'per month'),
-    (name: 'Yearly', price: r'$49.99', note: 'per year, 7-day trial'),
-    (name: 'Lifetime', price: r'$99', note: 'one time'),
-  ];
 
   static const _pro = [
     'Unlimited compounds',
@@ -36,8 +35,90 @@ class _PaywallViewState extends State<PaywallView> {
 
   static const _free = ['Mixing calculator', 'Up to 2 compounds', 'Weight and daily check-ins'];
 
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _handlePurchase(SubscriptionService sub, List<_PlanUiData> plans) async {
+    if (plans.isEmpty || _plan >= plans.length) return;
+    final selected = plans[_plan];
+    if (selected.package == null) {
+      OmnyaToast.show(
+        context,
+        title: 'Purchases opening soon',
+        message: 'Product configuration is currently being finalized.',
+        type: OmnyaToastType.info,
+      );
+      return;
+    }
+
+    HapticFeedback.lightImpact();
+    final success = await sub.purchase(selected.package!);
+    if (!mounted) return;
+    if (success) {
+      OmnyaToast.show(context, title: 'Welcome to Omnya Pro', type: OmnyaToastType.success);
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _handleRestore(SubscriptionService sub) async {
+    HapticFeedback.lightImpact();
+    final isPro = await sub.restore();
+    if (!mounted) return;
+    if (isPro) {
+      OmnyaToast.show(context, title: 'Purchases restored', message: 'You have Pro access.', type: OmnyaToastType.success);
+      Navigator.pop(context);
+    } else {
+      OmnyaToast.show(
+        context,
+        title: 'No active Pro found',
+        message: 'No previous subscriptions were found for this Apple ID.',
+        type: OmnyaToastType.info,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final sub = context.watch<SubscriptionService>();
+    final currentOffering = sub.offerings?.current;
+
+    Package? monthlyPkg;
+    Package? yearlyPkg;
+    Package? lifetimePkg;
+
+    if (currentOffering != null) {
+      monthlyPkg = currentOffering.monthly;
+      yearlyPkg = currentOffering.annual;
+      lifetimePkg = currentOffering.lifetime;
+    }
+
+    final plans = [
+      _PlanUiData(
+        name: 'Monthly',
+        price: monthlyPkg?.storeProduct.priceString ?? r'$9.99',
+        note: 'per month',
+        package: monthlyPkg,
+      ),
+      _PlanUiData(
+        name: 'Yearly',
+        price: yearlyPkg?.storeProduct.priceString ?? r'$49.99',
+        note: 'per year, 7-day trial',
+        package: yearlyPkg,
+      ),
+      _PlanUiData(
+        name: 'Lifetime',
+        price: lifetimePkg?.storeProduct.priceString ?? r'$99',
+        note: 'one time',
+        package: lifetimePkg,
+      ),
+    ];
+
+    final isAlreadyPro = sub.isPro;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -45,6 +126,16 @@ class _PaywallViewState extends State<PaywallView> {
           icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, color: OmnyaColors.charcoal, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          TextButton(
+            onPressed: sub.isLoading ? null : () => _handleRestore(sub),
+            child: Text(
+              'Restore',
+              style: OmnyaTypography.label(color: OmnyaColors.taupeDark, weight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -54,10 +145,10 @@ class _PaywallViewState extends State<PaywallView> {
             const SizedBox(height: 20),
             Row(
               children: [
-                for (var i = 0; i < _plans.length; i++) ...[
+                for (var i = 0; i < plans.length; i++) ...[
                   if (i > 0) const SizedBox(width: 8),
                   Expanded(
-                    child: _PlanCard(plan: _plans[i], selected: _plan == i, onTap: () => setState(() => _plan = i)),
+                    child: _PlanCard(plan: plans[i], selected: _plan == i, onTap: () => setState(() => _plan = i)),
                   ),
                 ],
               ],
@@ -70,7 +161,10 @@ class _PaywallViewState extends State<PaywallView> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text('Pro', style: OmnyaTypography.label(weight: FontWeight.w600)),
+                        child: Text(
+                          isAlreadyPro ? 'Pro (Active)' : 'Pro',
+                          style: OmnyaTypography.label(weight: FontWeight.w600),
+                        ),
                       ),
                       const OmnyaProBadge(),
                     ],
@@ -85,12 +179,49 @@ class _PaywallViewState extends State<PaywallView> {
               ),
             ),
             const SizedBox(height: 24),
-            const TactileButton(label: 'Pro opens soon', width: double.infinity, onPressed: null),
+            TactileButton(
+              label: isAlreadyPro
+                  ? 'You already have Pro'
+                  : (_plan == 1 ? 'Start 7-day free trial' : 'Upgrade to Pro'),
+              width: double.infinity,
+              isLoading: sub.isLoading,
+              onPressed: isAlreadyPro || sub.isLoading ? null : () => _handlePurchase(sub, plans),
+            ),
             const SizedBox(height: 10),
             Text(
-              "Purchases aren't available yet. Nothing is charged and the app keeps working.",
+              _plan == 1
+                  ? '7-day free trial, then ${plans[1].price}/year. Cancel anytime in App Store settings.'
+                  : 'Recurring subscriptions renew automatically unless cancelled at least 24 hours before the end of the period.',
               textAlign: TextAlign.center,
               style: OmnyaTypography.bodySmall(),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => _openUrl(AppCopy.termsOfServiceUrl),
+                  child: Text(
+                    'Terms of Use (EULA)',
+                    style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark).copyWith(
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('·', style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark)),
+                ),
+                GestureDetector(
+                  onTap: () => _openUrl(AppCopy.privacyPolicyUrl),
+                  child: Text(
+                    'Privacy Policy',
+                    style: OmnyaTypography.bodySmall(color: OmnyaColors.taupeDark).copyWith(
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -110,8 +241,22 @@ class _PaywallViewState extends State<PaywallView> {
   }
 }
 
+class _PlanUiData {
+  final String name;
+  final String price;
+  final String note;
+  final Package? package;
+
+  const _PlanUiData({
+    required this.name,
+    required this.price,
+    required this.note,
+    this.package,
+  });
+}
+
 class _PlanCard extends StatelessWidget {
-  final ({String name, String price, String note}) plan;
+  final _PlanUiData plan;
   final bool selected;
   final VoidCallback onTap;
   const _PlanCard({required this.plan, required this.selected, required this.onTap});

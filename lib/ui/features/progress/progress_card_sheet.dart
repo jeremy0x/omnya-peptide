@@ -16,6 +16,7 @@ import '../../../core/widgets/omnya_toast.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/repositories/protocol_repository.dart';
 import '../../../data/services/native_service.dart';
+import '../../../data/services/subscription_service.dart';
 import '../../../domain/insights.dart';
 import '../../../domain/schedule.dart';
 
@@ -154,8 +155,10 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      Text('made with Omnya', style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
+                      if (!context.watch<SubscriptionService>().isPro) ...[
+                        const SizedBox(height: 18),
+                        Text('made with Omnya', style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
+                      ],
                     ],
                   ),
                 ),

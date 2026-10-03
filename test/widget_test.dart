@@ -6,6 +6,7 @@ import 'package:peptide_app/core/theme/omnya_theme.dart';
 import 'package:peptide_app/core/widgets/omnya_controls.dart';
 import 'package:peptide_app/core/widgets/tactile_button.dart';
 import 'package:peptide_app/data/repositories/protocol_repository.dart';
+import 'package:peptide_app/data/services/subscription_service.dart';
 import 'package:peptide_app/ui/navigation/main_shell.dart';
 import 'package:peptide_app/ui/onboarding/onboarding_quiz_view.dart';
 import 'fakes.dart';
@@ -23,8 +24,11 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: repo,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: repo),
+          ChangeNotifierProvider(create: (_) => SubscriptionService(storage: repo.storage)),
+        ],
         child: MaterialApp(theme: OmnyaTheme.lightTheme, home: home),
       ),
     );

@@ -9,6 +9,7 @@ import 'data/services/cloud_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/native_service.dart';
 import 'data/services/reminder_service.dart';
+import 'data/services/subscription_service.dart';
 import 'ui/core/app_lock.dart';
 import 'ui/navigation/main_shell.dart';
 import 'ui/onboarding/onboarding_quiz_view.dart';
@@ -25,11 +26,14 @@ Future<void> main() async {
   final storage = await LocalStorageService.init();
   final reminders = ReminderService();
   await reminders.init();
+  final subscriptions = SubscriptionService(storage: storage);
+  unawaited(subscriptions.init());
 
   runApp(
     MultiProvider(
       providers: [
         Provider.value(value: reminders),
+        ChangeNotifierProvider.value(value: subscriptions),
         ChangeNotifierProvider(
           create: (_) {
             final repo = ProtocolRepository(storage: storage, cloud: CloudService());

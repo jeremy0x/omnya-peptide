@@ -9,12 +9,15 @@ import '../../../core/widgets/omnya_card.dart';
 import '../../../core/widgets/omnya_controls.dart';
 import '../../../core/widgets/omnya_logo.dart';
 import '../../../core/widgets/omnya_toast.dart';
+import '../../../core/widgets/slide_page_route.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/models/circle_data.dart';
 import '../../../data/repositories/protocol_repository.dart';
 import '../../../data/services/cloud_service.dart';
+import '../../../data/services/subscription_service.dart';
 import '../../../domain/schedule.dart';
 import '../../core/omnya_header.dart';
+import '../../onboarding/paywall_view.dart';
 
 /// Spec page 2: invite-only, up to 5, consistency and shot days only.
 class CircleView extends StatefulWidget {
@@ -90,12 +93,27 @@ class _NoCircle extends StatelessWidget {
                 'Weights, notes and photos stay private.',
           ),
           const SizedBox(height: 24),
-          TactileButton(label: 'Start a circle', onPressed: () => _showNameSheet(context, joining: false)),
+          TactileButton(
+            label: 'Start a circle',
+            onPressed: () {
+              if (!context.read<SubscriptionService>().isPro) {
+                Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+              } else {
+                _showNameSheet(context, joining: false);
+              }
+            },
+          ),
           const SizedBox(height: 10),
           TactileButton(
             label: 'Join with a code',
             variant: TactileButtonVariant.outline,
-            onPressed: () => _showNameSheet(context, joining: true),
+            onPressed: () {
+              if (!context.read<SubscriptionService>().isPro) {
+                Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+              } else {
+                _showNameSheet(context, joining: true);
+              }
+            },
           ),
         ],
       ),

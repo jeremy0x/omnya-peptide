@@ -12,9 +12,10 @@ import '../../../core/widgets/omnya_pro_badge.dart';
 import '../../../core/widgets/slide_page_route.dart';
 import '../../../core/widgets/tactile_button.dart';
 import '../../../data/models/daily_check_in.dart';
-import '../../../data/services/native_service.dart';
 import '../../../data/models/dose_log.dart';
 import '../../../data/repositories/protocol_repository.dart';
+import '../../../data/services/native_service.dart';
+import '../../../data/services/subscription_service.dart';
 import '../../../domain/insights.dart';
 import '../../../domain/schedule.dart';
 import '../../core/omnya_header.dart';
@@ -56,8 +57,16 @@ class TodayView extends StatelessWidget {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                OmnyaProBadge(onTap: () => Navigator.push(context, SlidePageRoute(page: const PaywallView()))),
-                const SizedBox(width: 8),
+                Consumer<SubscriptionService>(
+                  builder: (_, sub, _) => sub.isPro
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: OmnyaProBadge(
+                            onTap: () => Navigator.push(context, SlidePageRoute(page: const PaywallView())),
+                          ),
+                        ),
+                ),
                 const SyncStatusIndicator(),
                 const SizedBox(width: 8),
                 OmnyaIconButton(
