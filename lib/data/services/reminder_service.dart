@@ -106,13 +106,27 @@ class ReminderService {
 
   static const _details = NotificationDetails(
     iOS: DarwinNotificationDetails(),
-    android: AndroidNotificationDetails('reminders', 'Reminders', importance: Importance.high),
+    android: AndroidNotificationDetails(
+      'reminders',
+      'Reminders',
+      channelDescription: 'Dose and check-in reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: 'ic_notification',
+    ),
   );
 
   Future<void> init() async {
     try {
       tzdata.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation((await FlutterTimezone.getLocalTimezone()).identifier));
+      try {
+        final tzInfo = await FlutterTimezone.getLocalTimezone();
+        tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
+      } catch (e) {
+        debugPrint('Timezone lookup failed ($e), falling back to UTC');
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
+
       await _plugin.initialize(
         settings: const InitializationSettings(
           iOS: DarwinInitializationSettings(
@@ -124,6 +138,20 @@ class ReminderService {
         ),
         onDidReceiveNotificationResponse: (r) => _taps.add(r.payload ?? 'today'),
       );
+
+      // Register the notification channel on Android for heads-up alerts.
+      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        await android.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'reminders',
+            'Reminders',
+            description: 'Dose and check-in reminders',
+            importance: Importance.high,
+          ),
+        );
+      }
+
       final launch = await _plugin.getNotificationAppLaunchDetails();
       final payload = launch?.notificationResponse?.payload;
       if (launch?.didNotificationLaunchApp == true && payload != null) {
@@ -137,11 +165,24 @@ class ReminderService {
   }
 
   Future<bool> requestPermission() async {
-    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    return await ios?.requestPermissions(alert: true, sound: true, badge: false) ??
-        await android?.requestNotificationsPermission() ??
-        false;
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null) {
+        // If the user already enabled notifications in Android Settings, respect that immediately.
+        final enabled = await android.areNotificationsEnabled();
+        if (enabled == true) return true;
+        final granted = await android.requestNotificationsPermission();
+        return granted ?? false;
+      }
+      final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      if (ios != null) {
+        return await ios.requestPermissions(alert: true, sound: true, badge: false) ?? false;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Notification permission check failed: $e');
+      return false;
+    }
   }
 
   /// Rebuilds every pending reminder from the current data, a moment after the last change.
@@ -151,12 +192,14 @@ class ReminderService {
   }
 
   Future<void> _apply(ProtocolRepository repo) async {
+    if (!_ready) await init();
     if (!_ready) return;
     try {
       await _plugin.cancelAll();
       final planned = plannedReminders(repo, DateTime.now());
       if (planned.isEmpty) return;
-      await requestPermission();
+      final permitted = await requestPermission();
+      if (!permitted) return;
       for (final (i, r) in planned.take(60).indexed) {
         await _plugin.zonedSchedule(
           id: i,
@@ -175,14 +218,21 @@ class ReminderService {
 
   /// Shows one right away, so she can see reminders work.
   Future<bool> sendTest() async {
-    if (!_ready || !await requestPermission()) return false;
-    await _plugin.show(
-      id: 999,
-      title: 'Reminders are on',
-      body: 'This is what a dose reminder looks like.',
-      notificationDetails: _details,
-      payload: 'today',
-    );
-    return true;
+    if (!_ready) await init();
+    final hasPermission = await requestPermission();
+    if (!hasPermission) return false;
+    try {
+      await _plugin.show(
+        id: 999,
+        title: 'Reminders are on',
+        body: 'This is what a dose reminder looks like.',
+        notificationDetails: _details,
+        payload: 'today',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Failed to send test notification: $e');
+      return false;
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:peptide_app/core/theme/omnya_theme.dart';
@@ -135,4 +136,18 @@ void main() {
     expect(repo.checkIns.single.energyLevel, 4);
     await drain(tester);
   });
+
+  testWidgets('navigation tab bar renders all 5 icons with SVG pictures and labels', (tester) async {
+    await pumpApp(tester, const MainShell());
+
+    // On non-iOS-26 (fallback), 5 SvgPicture instances render each navigation asset cleanly.
+    expect(find.byWidgetPredicate((w) => w is SvgPicture && w.bytesLoader is SvgAssetLoader), findsNWidgets(5));
+    expect(find.bySemanticsLabel('Progress'), findsOneWidget);
+    expect(find.bySemanticsLabel('Stack'), findsOneWidget);
+    expect(find.bySemanticsLabel('Circle'), findsOneWidget);
+    expect(find.bySemanticsLabel('Log a dose'), findsOneWidget);
+    expect(find.ancestor(of: find.byType(SvgPicture).first, matching: find.bySemanticsLabel('Today')), findsOneWidget);
+    await drain(tester);
+  });
 }
+

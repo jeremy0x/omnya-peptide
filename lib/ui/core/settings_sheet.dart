@@ -67,7 +67,15 @@ void showSettingsSheet(BuildContext context) {
                     subtitle: 'See one arrive right now',
                     onTap: () async {
                       final sent = await reminders?.sendTest() ?? false;
-                      if (!sent && sheet.mounted) {
+                      if (!sheet.mounted) return;
+                      if (sent) {
+                        OmnyaToast.show(
+                          sheet,
+                          title: 'Reminder sent',
+                          message: 'Check your notification shade.',
+                          type: OmnyaToastType.success,
+                        );
+                      } else {
                         OmnyaToast.show(
                           sheet,
                           title: 'Notifications are off',

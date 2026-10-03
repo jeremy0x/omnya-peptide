@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:provider/provider.dart';
@@ -142,24 +144,39 @@ class _MainShellState extends State<MainShell> with RouteAware {
   Widget _tabBar() {
     // Five across with 12pt gaps; shrinks on the narrowest phones.
     final size = ((MediaQuery.sizeOf(context).width - 32 - 4 * 12) / 5).clamp(44.0, 58.0);
-    Widget circle({required String label, required String icon, bool selected = false, required VoidCallback onTap}) =>
-        Semantics(
+    Widget circle({required String label, required String icon, bool selected = false, required VoidCallback onTap}) {
+      final assetPath = 'assets/icons/$icon${selected ? '_active' : ''}.svg';
+      final color = selected ? OmnyaColors.plum : OmnyaColors.taupeDark;
+
+      if (PlatformVersion.shouldUseNativeGlass) {
+        return Semantics(
           button: true,
           selected: selected,
           label: label,
           excludeSemantics: true,
           child: CNButton.icon(
-            // Keyed by icon only: the plugin swaps the image in place, so the native view is never rebuilt.
             key: ValueKey(icon),
             imageAsset: CNImageAsset(
-              'assets/icons/$icon${selected ? '_active' : ''}.svg',
+              assetPath,
               size: 26,
-              color: selected ? OmnyaColors.plum : OmnyaColors.taupeDark,
+              color: color,
             ),
             onPressed: onTap,
             config: CNButtonConfig(style: CNButtonStyle.glass, width: size, minHeight: size),
           ),
         );
+      }
+
+      return _FlutterGlassTabButton(
+        key: ValueKey(icon),
+        label: label,
+        assetPath: assetPath,
+        selected: selected,
+        size: size,
+        color: color,
+        onTap: onTap,
+      );
+    }
 
     return ValueListenableBuilder<int>(
       valueListenable: CNTabBarRouteObserver.anyModalDepth,
@@ -321,3 +338,106 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
     showCompoundEditor(widget.shellContext, compound: c);
   }
 }
+
+/// Fallback tab button for non-native-glass platforms (such as Android) that
+/// displays the true SVG icons with a tactile frosted-glass circle effect.
+class _FlutterGlassTabButton extends StatefulWidget {
+  final String label;
+  final String assetPath;
+  final bool selected;
+  final double size;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FlutterGlassTabButton({
+    super.key,
+    required this.label,
+    required this.assetPath,
+    required this.selected,
+    required this.size,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_FlutterGlassTabButton> createState() => _FlutterGlassTabButtonState();
+}
+
+class _FlutterGlassTabButtonState extends State<_FlutterGlassTabButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 100),
+    reverseDuration: const Duration(milliseconds: 140),
+  );
+  late final Animation<double> _scale = Tween<double>(begin: 1.0, end: 0.94).animate(
+    CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic),
+  );
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      label: widget.label,
+      excludeSemantics: true,
+      child: ScaleTransition(
+        scale: _scale,
+        child: GestureDetector(
+          onTapDown: (_) {
+            HapticFeedback.lightImpact();
+            _anim.forward();
+          },
+          onTapUp: (_) {
+            _anim.reverse();
+            widget.onTap();
+          },
+          onTapCancel: () => _anim.reverse(),
+          behavior: HitTestBehavior.opaque,
+          child: ClipOval(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                width: widget.size,
+                height: widget.size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.selected
+                      ? OmnyaColors.cream.withValues(alpha: 0.94)
+                      : OmnyaColors.cream.withValues(alpha: 0.78),
+                  border: Border.all(
+                    color: widget.selected
+                        ? OmnyaColors.plum.withValues(alpha: 0.3)
+                        : OmnyaColors.taupe.withValues(alpha: 0.35),
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: OmnyaColors.charcoal.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: SvgPicture.asset(
+                    widget.assetPath,
+                    width: 26,
+                    height: 26,
+                    colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

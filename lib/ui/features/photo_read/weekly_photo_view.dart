@@ -188,6 +188,7 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
   int _index = 0;
   String? _problem;
   bool _busy = false;
+  bool _switching = false;
 
   @override
   void initState() {
@@ -219,28 +220,38 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
     try {
       if (_cameras.isEmpty) _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() => _problem = 'No camera found on this device. You can choose a photo from your library instead.');
+        if (mounted) {
+          setState(() => _problem = 'No camera found on this device. You can choose a photo from your library instead.');
+        }
         return;
       }
       final front = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
-      _index = index ?? (front == -1 ? 0 : front);
+      final back = _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.back);
+      _index = index ?? (front != -1 ? front : (back != -1 ? back : 0));
+
+      // CRITICAL FOR ANDROID CAMERAX: Disposing the previous controller AFTER
+      // initializing the new one causes CameraX to unbind all use cases and
+      // release the preview surface provider, leaving a black screen.
+      // The previous controller MUST be disposed first.
+      final old = _controller;
+      _controller = null;
+      if (mounted) setState(() {});
+      await old?.dispose();
+
       final controller = CameraController(
         _cameras[_index],
         ResolutionPreset.high,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       await controller.initialize();
       if (!mounted) {
         await controller.dispose();
         return;
       }
-      final old = _controller;
       setState(() {
         _controller = controller;
         _problem = null;
       });
-      await old?.dispose();
     } on CameraException catch (e) {
       debugPrint('Camera: ${e.code} ${e.description}');
       if (mounted) {
@@ -254,14 +265,31 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
   }
 
   Future<void> _flip() async {
-    if (_cameras.length < 2) return;
+    if (_cameras.length < 2 || _busy || _switching) return;
+    setState(() => _switching = true);
     HapticFeedback.lightImpact();
-    await _start(index: (_index + 1) % _cameras.length);
+    try {
+      final currentDirection = _cameras[_index].lensDirection;
+      final targetDirection = currentDirection == CameraLensDirection.front
+          ? CameraLensDirection.back
+          : CameraLensDirection.front;
+
+      // Find the primary camera matching targetDirection, fallback to cycling.
+      var nextIndex = _cameras.indexWhere((c) => c.lensDirection == targetDirection);
+      if (nextIndex == -1) {
+        nextIndex = (_index + 1) % _cameras.length;
+      }
+      await _start(index: nextIndex);
+    } finally {
+      if (mounted) {
+        setState(() => _switching = false);
+      }
+    }
   }
 
   Future<void> _capture() async {
     final c = _controller;
-    if (c == null || !c.value.isInitialized || _busy) return;
+    if (c == null || !c.value.isInitialized || _busy || _switching) return;
     setState(() => _busy = true);
     HapticFeedback.mediumImpact();
     try {
@@ -330,8 +358,16 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
                               FittedBox(
                                 fit: BoxFit.cover,
                                 child: SizedBox(
-                                  width: c.value.previewSize?.height ?? 3,
-                                  height: c.value.previewSize?.width ?? 4,
+                                  width: () {
+                                    final p = c.value.previewSize;
+                                    if (p == null) return 3.0;
+                                    return p.width > p.height ? p.height : p.width;
+                                  }(),
+                                  height: () {
+                                    final p = c.value.previewSize;
+                                    if (p == null) return 4.0;
+                                    return p.width > p.height ? p.width : p.height;
+                                  }(),
                                   child: CameraPreview(c),
                                 ),
                               ),
@@ -363,9 +399,9 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
                     button: true,
                     label: 'Take photo',
                     child: GestureDetector(
-                      onTap: ready ? _capture : null,
+                      onTap: ready && !_busy && !_switching ? _capture : null,
                       child: AnimatedOpacity(
-                        opacity: ready && !_busy ? 1 : 0.4,
+                        opacity: ready && !_busy && !_switching ? 1 : 0.4,
                         duration: const Duration(milliseconds: 150),
                         child: Container(
                           width: 76,
@@ -384,14 +420,16 @@ class _CameraScreenState extends State<_CameraScreen> with WidgetsBindingObserve
                   ),
                   IconButton(
                     tooltip: 'Flip camera',
-                    onPressed: _cameras.length > 1 ? _flip : null,
+                    onPressed: _cameras.length > 1 && !_switching && !_busy ? _flip : null,
                     style: IconButton.styleFrom(
                       backgroundColor: OmnyaColors.cream.withValues(alpha: 0.12),
                       fixedSize: const Size(48, 48),
                     ),
                     icon: HugeIcon(
                       icon: HugeIcons.strokeRoundedFlipHorizontal,
-                      color: _cameras.length > 1 ? OmnyaColors.cream : OmnyaColors.cream.withValues(alpha: 0.3),
+                      color: _cameras.length > 1 && !_switching && !_busy
+                          ? OmnyaColors.cream
+                          : OmnyaColors.cream.withValues(alpha: 0.3),
                       size: 22,
                     ),
                   ),
