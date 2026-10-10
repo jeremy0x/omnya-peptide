@@ -133,7 +133,7 @@ class WeeklyPhotoView extends StatelessWidget {
               label: 'Share this week',
               variant: TactileButtonVariant.secondary,
               width: double.infinity,
-              onPressed: () => showProgressCard(context),
+              onPressed: () => showProgressCard(context, withPhoto: true),
             ),
           ],
         ],

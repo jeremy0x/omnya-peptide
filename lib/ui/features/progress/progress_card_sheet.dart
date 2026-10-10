@@ -22,11 +22,13 @@ import '../../../domain/schedule.dart';
 
 /// The 9:16 progress card (spec page 6): one headline from her own numbers and
 /// the wordmark in the corner. Her photo is optional and always goes out with faces blurred.
-Future<void> showProgressCard(BuildContext context) =>
-    showOmnyaSheet(context, builder: (_) => const _ProgressCardSheet());
+/// [withPhoto] starts with her latest photo on the card (iOS only, where faces can be blurred).
+Future<void> showProgressCard(BuildContext context, {bool withPhoto = false}) =>
+    showOmnyaSheet(context, builder: (_) => _ProgressCardSheet(withPhoto: withPhoto));
 
 class _ProgressCardSheet extends StatefulWidget {
-  const _ProgressCardSheet();
+  final bool withPhoto;
+  const _ProgressCardSheet({this.withPhoto = false});
 
   @override
   State<_ProgressCardSheet> createState() => _ProgressCardSheetState();
@@ -37,6 +39,15 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
   bool _sharing = false;
   Uint8List? _photo;
   bool _blurring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final repo = context.read<ProtocolRepository>();
+    if (widget.withPhoto && repo.photos.isNotEmpty && defaultTargetPlatform == TargetPlatform.iOS) {
+      _togglePhoto(repo, true);
+    }
+  }
 
   /// Blurs faces on her latest photo before it can appear on the card.
   Future<void> _togglePhoto(ProtocolRepository repo, bool on) async {
@@ -119,46 +130,60 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
               key: _cardKey,
               child: AspectRatio(
                 aspectRatio: 9 / 16,
-                child: Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: OmnyaColors.plum,
-                    borderRadius: BorderRadius.circular(OmnyaRadius.card),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(OmnyaRadius.card),
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        names.isEmpty ? 'Week $week' : 'Week $week · $names',
-                        style: OmnyaTypography.tag(color: OmnyaColors.sandMuted),
-                      ),
+                      const ColoredBox(color: OmnyaColors.plum),
                       if (_photo != null) ...[
-                        const SizedBox(height: 14),
-                        Expanded(
-                          flex: 3,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(OmnyaRadius.chip),
-                            child: Image.memory(_photo!, fit: BoxFit.cover, width: double.infinity),
+                        Image.memory(_photo!, fit: BoxFit.cover),
+                        // Scrim so the overlay text reads on any photo.
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                OmnyaColors.plum.withValues(alpha: 0.55),
+                                OmnyaColors.plum.withValues(alpha: 0.05),
+                                OmnyaColors.plum.withValues(alpha: 0.85),
+                              ],
+                              stops: const [0, 0.35, 1],
+                            ),
                           ),
                         ),
                       ],
-                      const Spacer(),
-                      Text(headline, style: OmnyaTypography.displayLarge(color: OmnyaColors.cream)),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _Stat(label: 'Doses logged', value: '${logs.length}'),
-                          ),
-                          Expanded(
-                            child: _Stat(label: 'Days tracked', value: '$day'),
-                          ),
-                        ],
+                      Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              names.isEmpty ? 'Week $week' : 'Week $week · $names',
+                              style: OmnyaTypography.tag(color: OmnyaColors.sandMuted),
+                            ),
+                            const Spacer(),
+                            Text(headline, style: OmnyaTypography.displayLarge(color: OmnyaColors.cream)),
+                            SizedBox(height: _photo == null ? 0 : 16),
+                            if (_photo == null) const Spacer(),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _Stat(label: 'Doses logged', value: '${logs.length}'),
+                                ),
+                                Expanded(
+                                  child: _Stat(label: 'Days tracked', value: '$day'),
+                                ),
+                              ],
+                            ),
+                            if (!context.watch<SubscriptionService>().isPro) ...[
+                              const SizedBox(height: 18),
+                              Text('made with Omnya', style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
+                            ],
+                          ],
+                        ),
                       ),
-                      if (!context.watch<SubscriptionService>().isPro) ...[
-                        const SizedBox(height: 18),
-                        Text('made with Omnya', style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
-                      ],
                     ],
                   ),
                 ),
