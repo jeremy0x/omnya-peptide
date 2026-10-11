@@ -301,6 +301,8 @@ class OmnyaWheelField extends StatelessWidget {
                   Expanded(
                     child: Text(
                       value == null ? hint : _format(value!),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: OmnyaTypography.bodyLarge(
                         color: value == null ? OmnyaColors.charcoalLight : OmnyaColors.charcoal,
                       ),
