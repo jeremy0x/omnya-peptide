@@ -73,6 +73,8 @@ flutter test integration_test -d <device id>
 
 The integration test uses an in-memory backend, so it never writes to the live database.
 
+To record a walkthrough video (needs ffmpeg), run `flutter test tool/record_flow_test.dart --dart-define=OUT=omnya_flow.mp4`. It drives the real screens against the in-memory backend: onboarding, the first dose and every tab on day 1, then the same stack on day 30 with sample history and Pro on.
+
 ## Data and privacy
 
 - **Stays on the phone**: weekly photos, photo measurements, reminder settings and the Face ID lock.
