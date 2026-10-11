@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// The Pro badge: light gold, used in the header and on the plans screen.
+/// [label] swaps the text, e.g. "Upgrade" for people not on Pro yet.
 class OmnyaProBadge extends StatelessWidget {
   final VoidCallback? onTap;
+  final String label;
 
-  const OmnyaProBadge({super.key, this.onTap});
+  const OmnyaProBadge({super.key, this.onTap, this.label = 'PRO'});
 
   @override
   Widget build(BuildContext context) {
@@ -16,13 +18,14 @@ class OmnyaProBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        'PRO',
-        style: const TextStyle(
+        label,
+        style: TextStyle(
           fontFamily: 'InstrumentSans',
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: Color(0xFF6E5014), // refined deep warm gold/bronze
-          letterSpacing: 0.8,
+          // Tracking suits the all-caps PRO, not a word like Upgrade.
+          letterSpacing: label == label.toUpperCase() ? 0.8 : 0,
         ),
       ),
     );

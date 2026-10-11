@@ -1,3 +1,4 @@
+import CoreML
 import Flutter
 import HealthKit
 import UIKit
@@ -72,7 +73,7 @@ enum OmnyaNative {
     DispatchQueue.global(qos: .userInitiated).async {
       guard let image = upright(path) else { return reply(result, nil) }
       let request = VNDetectFaceLandmarksRequest()
-      try? VNImageRequestHandler(cgImage: image, orientation: .up).perform([request])
+      perform(request, on: image)
       guard let face = (request.results ?? []).max(by: { area($0) < area($1) }) else { return reply(result, nil) }
 
       var fullness = Double(face.boundingBox.width * CGFloat(image.width)) / Double(face.boundingBox.height * CGFloat(image.height))
@@ -117,28 +118,56 @@ enum OmnyaNative {
     return max(0, 1 - sd / mean)
   }
 
-  /// The photo as JPEG with every face heavily blurred, for sharing.
+  /// Runs a Vision request. The simulator has no Neural Engine, so Vision fails there unless it runs on the CPU.
+  static func perform(_ request: VNImageBasedRequest, on image: CGImage) {
+    #if targetEnvironment(simulator)
+      if #available(iOS 17.0, *) {
+        if let cpu = MLComputeDevice.allComputeDevices.first(where: { if case .cpu = $0 { return true } else { return false } }) {
+          request.setComputeDevice(cpu, for: .main)
+        }
+      } else {
+        request.usesCPUOnly = true
+      }
+    #endif
+    do {
+      try VNImageRequestHandler(cgImage: image, orientation: .up).perform([request])
+    } catch {
+      NSLog("Vision failed: \(error)")
+    }
+  }
+
+  /// The photo as JPEG with every face blurred, for sharing, plus how many faces were found.
   static func blurFaces(_ path: String, _ result: @escaping FlutterResult) {
     DispatchQueue.global(qos: .userInitiated).async {
       guard let cg = upright(path) else { return reply(result, nil) }
       let request = VNDetectFaceRectanglesRequest()
-      try? VNImageRequestHandler(cgImage: cg, orientation: .up).perform([request])
+      perform(request, on: cg)
       let input = CIImage(cgImage: cg)
-      let blurred = input.clampedToExtent().applyingGaussianBlur(sigma: Double(max(cg.width, cg.height)) / 25).cropped(to: input.extent)
+      let w = CGFloat(cg.width), h = CGFloat(cg.height)
+      let faces = request.results ?? []
       var output = input
-      for face in request.results ?? [] {
+      for face in faces {
         let b = face.boundingBox
-        // Pad the box so hairline and chin are covered too.
-        let rect = CGRect(
-          x: (b.minX - b.width * 0.25) * CGFloat(cg.width), y: (b.minY - b.height * 0.25) * CGFloat(cg.height),
-          width: b.width * 1.5 * CGFloat(cg.width), height: b.height * 1.6 * CGFloat(cg.height))
-        output = blurred.cropped(to: rect).composited(over: output)
+        // A soft oval over the face, nudged up and padded so forehead and chin are covered too.
+        let rx = b.width * w * 0.68, ry = b.height * h * 0.85
+        let center = CGPoint(x: b.midX * w, y: (b.midY + b.height * 0.05) * h)
+        let blurred = input.clampedToExtent().applyingGaussianBlur(sigma: Double(b.width * w) / 16)
+        // CIRadialGradient is a circle; stretch it into the oval. Feathered from 45% out so the edge disappears.
+        let mask = CIFilter(
+          name: "CIRadialGradient",
+          parameters: [
+            "inputCenter": CIVector(x: 0, y: 0), "inputRadius0": rx * 0.45, "inputRadius1": rx,
+            "inputColor0": CIColor.white, "inputColor1": CIColor.black,
+          ])!.outputImage!
+          .transformed(by: CGAffineTransform(scaleX: 1, y: ry / rx).concatenating(CGAffineTransform(translationX: center.x, y: center.y)))
+        output = blurred.applyingFilter(
+          "CIBlendWithMask", parameters: [kCIInputBackgroundImageKey: output, kCIInputMaskImageKey: mask])
       }
       let context = CIContext()
       guard let out = context.createCGImage(output, from: input.extent),
         let data = UIImage(cgImage: out).jpegData(compressionQuality: 0.9)
       else { return reply(result, nil) }
-      reply(result, FlutterStandardTypedData(bytes: data))
+      reply(result, ["jpeg": FlutterStandardTypedData(bytes: data), "faces": faces.count])
     }
   }
 

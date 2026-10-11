@@ -35,6 +35,17 @@ void showSettingsSheet(BuildContext context) {
       children: [
         Text('Settings', style: OmnyaTypography.headline()),
         const SizedBox(height: 12),
+        Consumer<SubscriptionService>(
+          builder: (ctx, sub, _) => _Row(
+            icon: HugeIcons.strokeRoundedHonourStar,
+            title: sub.isPro ? 'Omnya Pro (Active)' : 'Omnya Pro',
+            subtitle: sub.isPro ? 'Your Pro subscription is active' : 'See what Pro includes',
+            onTap: () {
+              Navigator.pop(sheet);
+              Navigator.push(context, SlidePageRoute(page: const PaywallView()));
+            },
+          ),
+        ),
         ListenableBuilder(
           listenable: repo,
           builder: (_, _) {
@@ -117,17 +128,6 @@ void showSettingsSheet(BuildContext context) {
             Navigator.pop(sheet);
             Navigator.push(context, SlidePageRoute(page: OnboardingQuizView(onFinished: () => Navigator.pop(context))));
           },
-        ),
-        Consumer<SubscriptionService>(
-          builder: (ctx, sub, _) => _Row(
-            icon: HugeIcons.strokeRoundedHonourStar,
-            title: sub.isPro ? 'Omnya Pro (Active)' : 'Omnya Pro',
-            subtitle: sub.isPro ? 'Your Pro subscription is active' : 'See what Pro includes',
-            onTap: () {
-              Navigator.pop(sheet);
-              Navigator.push(context, SlidePageRoute(page: const PaywallView()));
-            },
-          ),
         ),
         ListenableBuilder(
           listenable: repo,

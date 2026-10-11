@@ -59,14 +59,13 @@ class TodayView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Consumer<SubscriptionService>(
-                  builder: (_, sub, _) => sub.isPro
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: OmnyaProBadge(
-                            onTap: () => Navigator.push(context, SlidePageRoute(page: const PaywallView())),
-                          ),
-                        ),
+                  builder: (_, sub, _) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OmnyaProBadge(
+                      label: sub.isPro ? 'PRO' : 'Upgrade',
+                      onTap: () => Navigator.push(context, SlidePageRoute(page: const PaywallView())),
+                    ),
+                  ),
                 ),
                 const SyncStatusIndicator(),
                 const SizedBox(width: 8),

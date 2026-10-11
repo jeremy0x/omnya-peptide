@@ -1,3 +1,4 @@
+import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -21,8 +22,8 @@ import '../../../domain/insights.dart';
 import '../../../domain/schedule.dart';
 
 /// The 9:16 progress card (spec page 6): one headline from her own numbers and
-/// the wordmark in the corner. Her photo is optional and always goes out with faces blurred.
-/// [withPhoto] starts with her latest photo on the card (iOS only, where faces can be blurred).
+/// the wordmark in the corner. Her photo is optional and goes out with faces blurred.
+/// [withPhoto] starts with her latest photo on the card.
 Future<void> showProgressCard(BuildContext context, {bool withPhoto = false}) =>
     showOmnyaSheet(context, builder: (_) => _ProgressCardSheet(withPhoto: withPhoto));
 
@@ -39,17 +40,18 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
   bool _sharing = false;
   Uint8List? _photo;
   bool _blurring = false;
+  int _facesBlurred = 0;
 
   @override
   void initState() {
     super.initState();
     final repo = context.read<ProtocolRepository>();
-    if (widget.withPhoto && repo.photos.isNotEmpty && defaultTargetPlatform == TargetPlatform.iOS) {
+    if (widget.withPhoto && repo.photos.isNotEmpty) {
       _togglePhoto(repo, true);
     }
   }
 
-  /// Blurs faces on her latest photo before it can appear on the card.
+  /// Puts her latest photo on the card with faces blurred (spec: face-blur on every export).
   Future<void> _togglePhoto(ProtocolRepository repo, bool on) async {
     if (!on) return setState(() => _photo = null);
     setState(() => _blurring = true);
@@ -57,7 +59,8 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
     if (!mounted) return;
     setState(() {
       _blurring = false;
-      _photo = blurred;
+      _photo = blurred?.jpeg;
+      _facesBlurred = blurred?.faces ?? 0;
     });
     if (blurred == null) {
       OmnyaToast.show(context, title: "Couldn't prepare the photo", type: OmnyaToastType.error);
@@ -177,10 +180,29 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
                                 ),
                               ],
                             ),
-                            if (!context.watch<SubscriptionService>().isPro) ...[
-                              const SizedBox(height: 18),
-                              Text('made with Omnya', style: OmnyaTypography.bodySmall(color: OmnyaColors.sandMuted)),
-                            ],
+                            const SizedBox(height: 18),
+                            // Wordmark in the bottom corner, "made with" as the watermark on free (spec page 7).
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    context.watch<SubscriptionService>().isPro ? 'Omnya' : 'made with Omnya',
+                                    style: OmnyaTypography.bodySmall(
+                                      color: OmnyaColors.sandMuted,
+                                    ).copyWith(fontFamily: 'Fraunces', fontSize: 13),
+                                  ),
+                                ),
+                                if (_photo != null && _facesBlurred > 0)
+                                  Text(
+                                    'face blurred',
+                                    style: OmnyaTypography.bodySmall(
+                                      color: OmnyaColors.sandMuted.withValues(alpha: 0.7),
+                                    ).copyWith(fontSize: 10),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -191,15 +213,17 @@ class _ProgressCardSheetState extends State<_ProgressCardSheet> {
             ),
           ),
         ),
-        if (repo.photos.isNotEmpty && defaultTargetPlatform == TargetPlatform.iOS) ...[
+        if (repo.photos.isNotEmpty) ...[
           const SizedBox(height: 12),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            value: _photo != null || _blurring,
-            onChanged: _blurring ? null : (v) => _togglePhoto(repo, v),
-            activeTrackColor: OmnyaColors.plum,
-            title: Text('Add my latest photo', style: OmnyaTypography.label(weight: FontWeight.w600)),
-            subtitle: Text('Faces are blurred before it goes on the card.', style: OmnyaTypography.bodySmall()),
+          Row(
+            children: [
+              Expanded(child: Text('Add my latest photo', style: OmnyaTypography.label(weight: FontWeight.w600))),
+              CNSwitch(
+                value: _photo != null || _blurring,
+                onChanged: (v) => _blurring ? null : _togglePhoto(repo, v),
+                color: OmnyaColors.plum,
+              ),
+            ],
           ),
         ],
         const SizedBox(height: 20),

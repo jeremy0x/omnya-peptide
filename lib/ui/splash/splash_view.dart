@@ -71,7 +71,7 @@ class _OmnyaSplashScreenState extends State<OmnyaSplashScreen> with SingleTicker
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: OmnyaColors.sand,
-      body: Center(
+      body: SizedBox.expand(
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
@@ -82,19 +82,23 @@ class _OmnyaSplashScreenState extends State<OmnyaSplashScreen> with SingleTicker
               opacity: exitOpacity.clamp(0.0, 1.0),
               child: Transform.scale(
                 scale: exitScale,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
                   children: [
-                    // Harmonic logo circles: 144pt exactly matching native LaunchImage
-                    SizedBox(width: 144, height: 144, child: OmnyaLogoLoader(size: 144, compact: true)),
-                    const SizedBox(height: 32),
+                    // Harmonic logo circles: 144pt, centred like the native LaunchImage
+                    const Center(child: OmnyaLogoLoader(size: 144, compact: true)),
 
-                    // Brand Title: "Omnya" with gentle slide & fade
-                    SlideTransition(
-                      position: _textSlideAnimation,
-                      child: FadeTransition(
-                        opacity: _textFadeAnimation,
-                        child: Text('Omnya', style: OmnyaTypography.displayLarge()),
+                    // Brand Title: "Omnya" with gentle slide & fade, at the bottom
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SafeArea(
+                        minimum: const EdgeInsets.only(bottom: 32),
+                        child: SlideTransition(
+                          position: _textSlideAnimation,
+                          child: FadeTransition(
+                            opacity: _textFadeAnimation,
+                            child: Text('Omnya', style: OmnyaTypography.displayLarge()),
+                          ),
+                        ),
                       ),
                     ),
                   ],

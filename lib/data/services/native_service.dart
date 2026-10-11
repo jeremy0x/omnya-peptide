@@ -6,13 +6,14 @@ import '../../core/constants/compound_directory.dart';
 import '../../domain/schedule.dart';
 import '../repositories/protocol_repository.dart';
 
-/// iOS-only features in ios/Runner/AppDelegate.swift. Every call runs on the phone and
-/// returns null where the platform can't answer (Android, tests, no permission).
+/// Phone features in ios/Runner/AppDelegate.swift (Android's MainActivity.kt has face blur only).
+/// Every call runs on the phone and returns null where the platform can't answer (tests, no permission).
 class NativeService {
   static const _channel = MethodChannel('omnya/native');
 
   static Future<T?> _call<T>(String method, [Map<String, Object?>? args]) async {
-    if (defaultTargetPlatform != TargetPlatform.iOS) return null;
+    final android = defaultTargetPlatform == TargetPlatform.android && method == 'blurFaces';
+    if (defaultTargetPlatform != TargetPlatform.iOS && !android) return null;
     try {
       return await _channel.invokeMethod<T>(method, args);
     } on Exception catch (e) {
@@ -35,8 +36,12 @@ class NativeService {
     return (fullness: (r['fullness']! as num).toDouble(), evenness: (r['evenness'] as num?)?.toDouble());
   }
 
-  /// The photo with faces blurred, as JPEG.
-  static Future<Uint8List?> blurFaces(String path) => _call<Uint8List>('blurFaces', {'path': path});
+  /// The photo with faces blurred, as JPEG, and how many faces were blurred.
+  static Future<({Uint8List jpeg, int faces})?> blurFaces(String path) async {
+    final r = await _call<Map<Object?, Object?>>('blurFaces', {'path': path});
+    if (r == null) return null;
+    return (jpeg: r['jpeg']! as Uint8List, faces: (r['faces']! as num).toInt());
+  }
 
   /// Home and lock screen widget data, plus the shot-day Live Activity (null ends it).
   static Future<void> updateWidget(Map<String, Object?> data, Map<String, String>? activity) =>
