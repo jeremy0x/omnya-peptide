@@ -247,7 +247,12 @@ class Recorder {
       final scrollable = find.ancestor(of: target, matching: find.byType(Scrollable));
       if (scrollable.evaluate().isEmpty) return;
       final dy = r.bottom > bottom ? -(r.bottom - bottom + 60).clamp(0, 420) : (top - r.top + 60).clamp(0, 420);
+      // Already at the end it would scroll toward: it's as visible as it gets, so tap it there.
+      final position = tester.state<ScrollableState>(scrollable.first).position;
+      if (dy < 0 ? position.pixels >= position.maxScrollExtent : position.pixels <= position.minScrollExtent) return;
       await drag(Offset(_logical.width / 2, dy < 0 ? 620 : 260), dy.toDouble());
+      // A drag that moved nothing would only repeat.
+      if ((tester.getRect(target).top - r.top).abs() < 4) return;
     }
   }
 
