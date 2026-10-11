@@ -194,7 +194,7 @@ class ProtocolRepository extends ChangeNotifier {
   File photoFile(ProgressPhoto p) => File('${storage.photosDir.path}/${p.fileName}');
 
   ProgressPhoto? photoInWeekOf(DateTime day) {
-    final start = weekStartOf(day);
+    final start = photoWeekStartOf(day);
     final end = addDays(start, 7);
     for (final p in _photos.reversed) {
       if (!p.takenAt.isBefore(start) && p.takenAt.isBefore(end)) return p;

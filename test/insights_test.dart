@@ -45,6 +45,11 @@ void main() {
     });
 
     test('weeks start on Monday', () => expect(weekStartOf(now), DateTime(2026, 9, 28)));
+    test('photo weeks start on Sunday', () {
+      expect(photoWeekStartOf(now), DateTime(2026, 9, 27));
+      expect(photoWeekStartOf(DateTime(2026, 9, 27, 8)), DateTime(2026, 9, 27)); // Sunday opens its week
+      expect(photoWeekStartOf(DateTime(2026, 10, 3, 23)), DateTime(2026, 9, 27)); // Saturday still in it
+    });
 
     test('runout is the day of the last dose left', () {
       // Due Oct 3 (7 days after Sep 26), 2 doses left: Oct 3 and Oct 10.

@@ -363,7 +363,7 @@ class _CheckInCardState extends State<_CheckInCard> {
   Widget build(BuildContext context) {
     final today = widget.repo.checkInOn(widget.now);
     final hasCycle = widget.repo.profile?.hasCycle ?? false;
-    final photoThisWeek = widget.repo.photoInWeekOf(widget.now) != null;
+    final photoThisWeek = widget.repo.photoInWeekOf(widget.now);
     // Strength is a weekly question: asked until it's answered this week, and on the day it was.
     final weekStart = weekStartOf(widget.now);
     final strengthThisWeek = widget.repo.checkIns.any(
@@ -547,7 +547,17 @@ class _CheckInCardState extends State<_CheckInCard> {
               ),
             ],
             const SizedBox(height: 16),
-            const Divider(height: 1),
+            // Runs through the card's 18 px padding to touch both edges.
+            SizedBox(
+              height: 1,
+              child: LayoutBuilder(
+                builder: (_, c) => OverflowBox(
+                  minWidth: c.maxWidth + 36,
+                  maxWidth: c.maxWidth + 36,
+                  child: const Divider(height: 1),
+                ),
+              ),
+            ),
             const SizedBox(height: 4),
             InkWell(
               onTap: () {
@@ -558,12 +568,48 @@ class _CheckInCardState extends State<_CheckInCard> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Row(
                   children: [
-                    const HugeIcon(icon: HugeIcons.strokeRoundedCameraSmile02, color: OmnyaColors.plum, size: 20),
+                    // Her photo once it's in; a camera tile until then.
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(OmnyaRadius.chip),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: photoThisWeek != null
+                            ? Image.file(
+                                widget.repo.photoFile(photoThisWeek),
+                                fit: BoxFit.cover,
+                                cacheWidth: 132,
+                                gaplessPlayback: true,
+                              )
+                            : const ColoredBox(
+                                color: OmnyaColors.sandMuted,
+                                child: Center(
+                                  child: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCameraSmile02,
+                                    color: OmnyaColors.plum,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        photoThisWeek ? "This week's photo is in" : "Take this week's photo",
-                        style: OmnyaTypography.label(weight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            photoThisWeek != null ? "This week's photo is in" : "Take this week's photo",
+                            style: OmnyaTypography.label(weight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            photoThisWeek != null
+                                ? 'See it next to last week'
+                                : 'Same spot, same light as last week',
+                            style: OmnyaTypography.bodySmall(),
+                          ),
+                        ],
                       ),
                     ),
                     const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, color: OmnyaColors.taupeDark, size: 18),

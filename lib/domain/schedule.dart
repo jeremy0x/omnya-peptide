@@ -15,6 +15,9 @@ bool sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month &
 /// Weeks start on Monday.
 DateTime weekStartOf(DateTime t) => addDays(dayOf(t), 1 - t.weekday);
 
+/// Photo weeks run Sunday to Saturday, so the Sunday photo opens its week instead of closing it.
+DateTime photoWeekStartOf(DateTime t) => addDays(dayOf(t), -(t.weekday % 7));
+
 DoseLog? lastDoseOf(String compoundId, List<DoseLog> logs) {
   DoseLog? last;
   for (final l in logs) {
