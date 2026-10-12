@@ -455,6 +455,7 @@ class _CheckInCardState extends State<_CheckInCard> {
                 )
               else ...[
                 const SizedBox(height: 14),
+                // Two across, so each field has room for its value on one line.
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -483,7 +484,12 @@ class _CheckInCardState extends State<_CheckInCard> {
                         onChanged: (v) => setState(() => _sleep = v),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Expanded(
                       child: OmnyaWheelField(
                         label: 'Pain',
@@ -494,18 +500,20 @@ class _CheckInCardState extends State<_CheckInCard> {
                         onChanged: (v) => setState(() => _pain = v?.round()),
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OmnyaWheelField(
+                        label: 'Protein',
+                        value: _protein?.toDouble(),
+                        min: 0,
+                        max: 300,
+                        step: 5,
+                        start: (widget.repo.profile?.proteinTargetG ?? 100).toDouble(),
+                        unit: 'g',
+                        onChanged: (v) => setState(() => _protein = v?.round()),
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: 14),
-                OmnyaWheelField(
-                  label: 'Protein',
-                  value: _protein?.toDouble(),
-                  min: 0,
-                  max: 300,
-                  step: 5,
-                  start: (widget.repo.profile?.proteinTargetG ?? 100).toDouble(),
-                  unit: 'g',
-                  onChanged: (v) => setState(() => _protein = v?.round()),
                 ),
                 const SizedBox(height: 14),
                 Text('Anything else', style: OmnyaTypography.label(color: OmnyaColors.charcoalMuted)),
@@ -643,17 +651,21 @@ class _Pill extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: selected ? OmnyaColors.plum : OmnyaColors.sandMuted,
             borderRadius: BorderRadius.circular(OmnyaRadius.chip),
           ),
-          child: Text(
-            label,
-            style: OmnyaTypography.label(
-              color: selected ? OmnyaColors.cream : OmnyaColors.charcoalMuted,
-              weight: FontWeight.w600,
+          // Centered, but only as wide as the label unless the parent stretches it.
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Text(
+              label,
+              style: OmnyaTypography.label(
+                color: selected ? OmnyaColors.cream : OmnyaColors.charcoalMuted,
+                weight: FontWeight.w600,
+              ),
             ),
           ),
         ),
